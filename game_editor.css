@@ -2262,3 +2262,63 @@ button:active {
 #status_bar {
 	display: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CELEBRATION OVERLAY — Full-page absolute overlay for animations
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#celebration_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 99999;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#celebration_overlay.active {
+    opacity: 1;
+}
+
+#celebration_canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#celebration_dom_layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Remove old confetti-particle style if present, replace with this: */
+.confetti-particle {
+    display: none; /* Disable old emoji confetti */
+}
+
+/* ─── Celebration category block styling ─────────────────────────────── */
+.cat-celebrations,
+.palette-block.cat-celebrations {
+    background: linear-gradient(135deg, #ffd740 0%, #ffab00 100%) !important;
+    border-left: 4px solid #ff6d00;
+    color: #333;
+}
+
+.workspace-block.cat-celebrations {
+    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+    border-left: 4px solid #ffd740;
+}
+
+.workspace-block.cat-celebrations:hover {
+    box-shadow: 0 2px 12px rgba(255, 215, 64, 0.4);
+}

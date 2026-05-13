@@ -802,10 +802,32 @@
 	function executeSingleStatement(line, vars, state) {
 		if (tryShowText(line, vars, state)) return true;
 		if (tryPrint(line, vars, state)) return true;
+		if (tryCelebration(line, vars)) return true;
 		if (tryAssignment(line, vars)) return true;
 		if (tryCompoundAssignment(line, vars)) return true;
 		return false;
 	}
+
+	// ─── Celebration commands ───────────────────────────────────────────
+
+	function tryCelebration(line, vars) {
+		// celebrate("type")
+		var celebrateMatch = line.match(/^celebrate\s*\(\s*["'](\w+)["']\s*\)$/);
+			if (celebrateMatch) {
+				if (typeof window.celebrate === 'function') {
+					window.celebrate(celebrateMatch[1]);
+				}
+				return true;
+			}
+			// celebrate_stop()
+			if (line === 'celebrate_stop()' || line === 'stopCelebration()') {
+				if (typeof window.stopCelebrationImmediate === 'function') {
+					window.stopCelebrationImmediate();
+				}
+				return true;
+			}
+			return false;
+		}
 
 	// ─── Show Text ──────────────────────────────────────────────────────
 
@@ -1518,3 +1540,11 @@
 	window.addEventListener('beforeunload', cleanup);
 
 })();
+
+		// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
+
+function showConfetti() {
+    if (typeof window.celebrate === 'function') {
+        window.celebrate('confetti');
+    }
+}

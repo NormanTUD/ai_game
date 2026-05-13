@@ -222,6 +222,7 @@
     <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" type="audio/wav">
 </audio>
 
+<script src="celebrations.js"></script>
 <script src="kid_helpers.js"></script>
 <script src="visual_blocks.js"></script>
 <script src="game_editor_engine.js"></script>
