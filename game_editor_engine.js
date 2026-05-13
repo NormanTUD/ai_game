@@ -405,20 +405,26 @@
 		return { tensor: rawTensor, features: s[1], candidates: s[2] };
 	}
 
-	function extractBoxesAndScores(res) {
-		return tf.tidy(function () {
-			var rawTensor = tf.tensor3d(res);
-			var transposed = transposeIfNeeded(rawTensor);
-			var nc = transposed.features - 4;
-			if (nc <= 0) return null;
-			var predTensor = transposed.tensor.transpose([0, 2, 1]);
-			var splits = tf.split(predTensor, [4, nc], 2);
-			return {
-				boxes: splits[0].squeeze().arraySync(),
-				scores: splits[1].squeeze().arraySync(),
-				numClasses: nc
-			};
-		});
+	async function extractBoxesAndScores(res) {
+		var rawTensor = tf.tensor3d(res);
+		var transposed = transposeIfNeeded(rawTensor);
+		var nc = transposed.features - 4;
+		if (nc <= 0) { rawTensor.dispose(); return null; }
+
+		var predTensor = transposed.tensor.transpose([0, 2, 1]);
+		var splits = tf.split(predTensor, [4, nc], 2);
+
+		var boxes = await splits[0].squeeze().array();   // async!
+		var scores = await splits[1].squeeze().array();   // async!
+
+		// Dispose all tensors
+		rawTensor.dispose();
+		transposed.tensor.dispose();
+		predTensor.dispose();
+		splits[0].dispose();
+		splits[1].dispose();
+
+		return { boxes: boxes, scores: scores, numClasses: nc };
 	}
 
 	function isValidOutput(res) {
@@ -466,13 +472,14 @@
 		};
 	}
 
-	function processOutput(res, modelWidth, modelHeight, confThreshold) {
+	async function processOutput(res, modelWidth, modelHeight, confThreshold) {
 		if (!isValidOutput(res)) return [];
-		var extracted = extractBoxesAndScores(res);
+		var extracted = await extractBoxesAndScores(res);
 		if (!extracted) return [];
 		var detections = [];
 		for (var i = 0; i < extracted.boxes.length; i++) {
-			var det = buildDetection(extracted.boxes[i], extracted.scores[i], modelWidth, modelHeight, confThreshold, extracted.numClasses);
+			var det = buildDetection(extracted.boxes[i], extracted.scores[i],
+				modelWidth, modelHeight, confThreshold, extracted.numClasses);
 			if (det) detections.push(det);
 		}
 		return simpleNMS(detections, 0.5);
@@ -1213,20 +1220,27 @@
 	async function gameStep() {
 		if (!gameRunning || gameStepRunning) return;
 		gameStepRunning = true;
+
+		// Run detection (heavy work)
 		var detections = await safeRunDetection();
-		drawGameDetections(detections);
-		updateCachedParsed();
-		var vars = buildDSLContext(detections);
-		try {
-			var results = interpretScript(cachedParsed, vars);
-			persistUserVars(vars);
-			handleScriptResults(results);
-		} catch (e) {
-			appendOutput("FEHLER: " + (e.message || "Unbekannter Fehler"));
-			clearTextOverlay();
-		}
-		setStatus('Läuft | Erkennungen: ' + detections.length);
-		gameStepRunning = false;
+
+		// Schedule drawing on the NEXT animation frame so the browser
+		// can run CSS animations / celebration canvas smoothly
+		requestAnimationFrame(function() {
+			drawGameDetections(detections);
+			updateCachedParsed();
+			var vars = buildDSLContext(detections);
+			try {
+				var results = interpretScript(cachedParsed, vars);
+				persistUserVars(vars);
+				handleScriptResults(results);
+			} catch (e) {
+				appendOutput("FEHLER: " + (e.message || "Unbekannter Fehler"));
+				clearTextOverlay();
+			}
+			setStatus('Läuft | Erkennungen: ' + detections.length);
+			gameStepRunning = false;
+		});
 	}
 
 	async function safeRunDetection() {
