@@ -1301,6 +1301,13 @@
 		setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
 		appendOutput("🎮 Spiel läuft!");
 		scheduleNextStep();
+
+		    var workspace = document.getElementById('block_workspace');
+    if (workspace) {
+        workspace.style.display = 'block';
+        workspace.style.visibility = 'visible';
+        workspace.style.opacity = '1';
+    }
 	}
 
 	async function scheduleNextStep() {
@@ -1530,7 +1537,11 @@
 
 	function closeGalleryModal() {
 		var modal = document.getElementById('example_gallery_modal');
-		if (modal) modal.classList.remove('visible');
+		if (modal) {
+			modal.classList.remove('visible');
+			// Belt-and-suspenders: guarantee it cannot capture events
+			modal.style.pointerEvents = 'none';
+		}
 	}
 
 	function renderExampleGallery() {
@@ -1575,9 +1586,8 @@
 		renderExampleGallery();
 		var modal = document.getElementById('example_gallery_modal');
 		if (modal) {
-			// FIX #2 & #3: Force modal above everything regardless of game-running state
-			modal.style.zIndex = '99999';
-			modal.style.pointerEvents = 'auto';
+			modal.style.pointerEvents = '';   // clear any inline override so CSS class takes over
+			modal.style.zIndex = '';          // let CSS handle it
 			modal.classList.add('visible');
 		}
 	}
