@@ -2479,3 +2479,42 @@ button:active {
     pointer-events: auto !important;
     z-index: 99999 !important;
 }
+
+/* ═══ FORCE WORKSPACE BLOCKS VISIBLE ═══ */
+#block_workspace {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-height: 100px;
+    overflow-y: auto !important;
+}
+
+#block_workspace .workspace-block {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    height: auto !important;
+    overflow: visible !important;
+    transform: none !important;
+    pointer-events: auto !important;
+}
+
+/* When game is running, do NOT hide the block workspace */
+#game_editor_page.game-running #block_workspace,
+#game_editor_page.game-running #block_workspace .workspace-block {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    animation-play-state: running !important;
+}
+
+/* Ensure the editor panel (parent of block_workspace) stays visible alongside webcam */
+#game_editor_page.game-running .editor-panel,
+#game_editor_page.game-running #code_editor_area,
+#game_editor_page.game-running [class*="editor"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
