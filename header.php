@@ -4,8 +4,7 @@
 ?>
 <!DOCTYPE html>
 <head>
-	<title>annotate</title>
-	<link rel="stylesheet" href="libs/annotorious.min.css">
+	<title>AI Game</title>
 	<link rel="stylesheet" href="style.css">
 	<link rel="stylesheet" href="auto_animations.css">
 	<script src="<?= asset('libs/plotly-latest.min.js') ?>"></script>
