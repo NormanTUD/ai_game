@@ -47,15 +47,21 @@
 		return buffer.length > max ? buffer.slice(-max) : buffer;
 	}
 
+	var outputDirty = false;
+
 	function appendOutput(text) {
 		outputBuffer.push(formatOutputLine(text));
 		outputBuffer = trimBuffer(outputBuffer, maxOutputLines);
-		renderOutput();
+		if (!outputDirty) {
+			outputDirty = true;
+			requestAnimationFrame(renderOutput);
+		}
 	}
 
 	function renderOutput() {
 		outputDiv.textContent = outputBuffer.join('\n');
 		outputDiv.scrollTop = outputDiv.scrollHeight;
+		outputDirty = false;
 	}
 
 	function clearOutput() {
