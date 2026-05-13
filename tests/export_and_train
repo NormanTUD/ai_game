@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+url="http://localhost:9912/export_annotations.php?model=yolo11n.yaml&max_files=0&epochs=1&validation_split=0&test_split=0&empty=0&group_by_perception_hash=0&only_curated=0&only_uncurated=0&max_truncation=100"
+
+tmp=$(mktemp -d)
+cd "$tmp" || exit 1
+
+wget "$url" -O test.zip
+if [[ ! -e test.zip ]]; then
+	echo "Download failed: test.zip does not exist"
+	exit 1
+fi
+
+unzip -q test.zip || {
+	echo "Unzipping test.zip failed"
+	exit 2
+}
+
+echo "Files extracted to: $tmp"
+
+for needs_to_exists in dataset.yaml labels labels.json train visualize; do
+	if [[ ! -e $needs_to_exists ]]; then
+		echo "Fail: file $needs_to_exists needs to exist but does not"
+		exit 3
+	fi
+done
+
+if ! bash -n train; then
+	echo "Failed: train is not a valid bash file"
+fi
+
+if ! bash -n visualize; then
+	echo "Failed: visualize is not a valid bash file"
+fi
+
+if [[ $(ls labels | wc -l) -ne 1 ]]; then
+	echo "labels does not have exactly one entry"
+	exit 4
+fi
+
+if ! ls labels/example.txt 2>/dev/null >/dev/null; then
+	echo "labels does not contain example.txt"
+	exit 5
+fi
+
+if [[ $(cat labels/example.txt | wc -l) -ne 1 ]]; then
+	echo "labels/example.txt does not have exactly 1 line"
+	exit 6
+fi
+
+category_id=$(cat labels/example.txt | sed -e 's#\s.*##')
+if ! [[ "$category_id" =~ ^[0-9]+$ ]]; then
+    echo "The category of example.txt is not a valid non-negative integer (got: '$category_id')"
+    exit 7
+fi
+
+VENV_PATH="${HOME}/.yolov11_venv"
+if [[ -d "$VENV_PATH" ]]; then
+	source "$VENV_PATH/bin/activate"
+	yolo settings runs_dir="$(pwd)/runs"
+	deactivate
+fi
+
+if ! bash train; then
+	echo "bash train failed"
+
+	rm "$HOME/.config/Ultralytics/settings.json"
+
+	exit 8
+fi
+
+rm "$HOME/.config/Ultralytics/settings.json"
+
+if [[ ! -e runs/detect/train/results.csv ]]; then
+	echo "runs/detect/train/results.csv not found"
+	exit 9
+fi
+
+if [[ $(cat runs/detect/train/results.csv | wc -l) -ne 2 ]]; then
+	echo "runs/detect/train/results.csv does not contain 2 lines"
+	exit 10
+fi
+
+if [[ ! -e runs/detect/train/weights/best.pt ]]; then
+	echo "runs/detect/train/weights/best.pt not found"
+	exit 11
+fi
+
+exit 0

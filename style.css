@@ -1,0 +1,269 @@
+body {
+	font-family: Arial;
+	margin: 20px;
+	background-color: #121212;
+	color: #e0e0e0;
+}
+
+table {
+	border-collapse: collapse;
+	width: 100%;
+	margin-bottom: 30px;
+	background-color: #1e1e1e;
+}
+
+th, td {
+	border: 1px solid #555;
+	padding: 8px;
+	color: #e0e0e0;
+}
+
+th {
+	background: #2c2c2c;
+}
+
+form {
+	display: inline;
+}
+
+.btn {
+	padding: 4px 8px;
+}
+
+/* Style the tab */
+.tab {
+	overflow: hidden;
+	border: 1px solid #444;
+	background-color: #1e1e1e;
+}
+
+/* Style the buttons that are used to open the tab content */
+.tab button {
+	background-color: inherit;
+	float: left;
+	border: none;
+	outline: none;
+	cursor: pointer;
+	padding: 14px 16px;
+	transition: 0.3s;
+	color: #e0e0e0;
+}
+
+/* Change background color of buttons on hover */
+.tab button:hover {
+	background-color: #333;
+}
+
+/* Create an active/current tablink class */
+.tab button.active {
+	background-color: #555;
+}
+
+/* Style the tab content */
+.tabcontent {
+	display: none;
+	padding: 6px 12px;
+	border: 1px solid #444;
+	border-top: none;
+	background-color: #1a1a1a;
+}
+
+#top {
+	border: 1px solid #444;
+}
+
+.ai_stuff {
+	display: none;
+	color: #fff;
+}
+
+#defective_files {
+	display: none;
+}
+
+#annotation_area, #list {
+	border: 1px solid #555;
+	padding: 15px;
+	border-radius: 8px;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+	background-color: #1e1e1e;
+	margin-bottom: 20px;
+	color: #e0e0e0;
+}
+
+button {
+	background-color: #4CAF50;
+	color: white;
+	padding: 8px 14px;
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+	transition: 0.2s;
+}
+
+button:hover {
+	background-color: #45a049;
+	transform: translateY(-1px);
+}
+
+button:active {
+	transform: translateY(1px);
+}
+
+input, select {
+	padding: 6px 10px;
+	border-radius: 5px;
+	border: 1px solid #555;
+	margin-right: 5px;
+	transition: 0.2s;
+	background-color: #1e1e1e;
+	color: #e0e0e0;
+}
+
+input:focus, select:focus {
+	outline: none;
+	border-color: #4CAF50;
+	box-shadow: 0 0 5px rgba(76,175,80,0.5);
+}
+
+a {
+	color: #64b5f6;
+	text-decoration: none;
+	transition: 0.2s;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+.main-nav {
+	display: flex;
+	gap: 15px;
+	font-family: sans-serif;
+}
+
+.main-nav a {
+	color: #ddd;
+	text-decoration: none;
+	font-weight: bold;
+	transition: color 0.2s;
+	border: 1px solid black;
+	background: #222;
+	border-radius: 10px;
+	padding: 4px;
+}
+
+.main-nav a:hover {
+	color: #4cafef;
+}
+
+.notification-icon {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	font-size: 80px; /* groß */
+	color: rgba(255, 0, 0, 0.9); /* rot als Hinweis */
+	z-index: 9999;
+	opacity: 0;
+	transition: opacity 0.2s;
+	pointer-events: none; /* klickbar darunter */
+}
+
+.ai-scanning-overlay {
+	position: absolute;
+	pointer-events: none;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(
+	120deg,
+	rgba(255, 255, 255, 0) 0%,
+	rgba(255, 255, 255, 0.15) 50%,
+	rgba(255, 255, 255, 0) 100%
+	);
+	transform: translateX(-100%);
+	animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+	0% { transform: translateX(-100%); }
+	100% { transform: translateX(100%); }
+}
+
+.image-container {
+	position: relative;
+	display: inline-block;
+}
+
+@keyframes hacker_glow {
+	0% { box-shadow: 0 0 5px #0f0; }
+	50% { box-shadow: 0 0 20px #0f0; }
+	100% { box-shadow: 0 0 5px #0f0; }
+}
+
+.blinking-border {
+	animation: hacker_glow 1s infinite;
+}
+
+#image {
+	transition: width 0.25s ease, height 0.25s ease, opacity 0.25s ease;
+	display: inline-block;
+}
+
+.autonext-stop {
+	background-color: red;
+	color: white;
+}
+
+#list ul {
+	text-align: right;           /* Text + Marker rechts */
+	list-style: none;
+}
+
+#list ul {
+	counter-reset: li;
+}
+
+#col_right {
+	vertical-align: top;
+	text-align: end;
+}
+
+#status_bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    user-select: none;
+    height: 1.5em;
+    line-height: 1.5em;
+    width: 100%;
+    position: fixed;
+    bottom: 0px;
+    left: 0px;
+    border: 1px groove #626262;
+    background-color: rgba(40, 40, 40, 0.95);
+    z-index: 99999;
+    padding: 0 8px;
+    color: #ccc;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.5);
+    box-sizing: border-box;
+    overflow: hidden;          /* clip anything that overflows */
+}
+
+#status_bar_msg {
+    white-space: nowrap;       /* prevent text from wrapping */
+    overflow: hidden;
+    text-overflow: ellipsis;   /* show "..." if text is too long */
+    flex-shrink: 1;            /* allow this to shrink */
+    min-width: 0;              /* needed for ellipsis to work in flex */
+}
+
+#tensor_monitor {
+    white-space: nowrap;       /* prevent text from wrapping */
+    margin-left: auto;
+    flex-shrink: 0;            /* don't let this shrink — keep it visible */
+    text-align: right;
+}

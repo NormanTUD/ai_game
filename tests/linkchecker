@@ -1,0 +1,13 @@
+#!/bin/bash
+
+source tests/venv
+
+echo "====== linkchecker ======"
+
+linkchecker http://localhost:9912
+exit_code=$?
+
+if [[ $exit_code -ne 0 ]]; then
+	echo "linkchecker failed"
+	exit 5
+fi

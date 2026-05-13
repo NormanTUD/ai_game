@@ -1,0 +1,93 @@
+#!/bin/bash
+
+if ! command -v curl 2>&1 >/dev/null; then
+	echo "curl not installed. Try sudo apt install -y curl"
+	exit 255
+fi
+
+source tests/venv
+
+curl localhost:9912 2>/dev/null >/dev/null || bash tests/run_in_docker
+
+[ -f "$HOME/.playwright_deps_installed" ] || {
+	echo "====== pip3 install playwright ======" && {
+		pip3 install playwright || {
+			echo "pip3 install playwright failed. Are you online?" 
+			rm -rf ~/.annotate_test_env
+			exit 1
+		}
+	} &&
+	echo "====== playwright install chromium ======" && \
+	playwright install chromium && \
+	{
+		which chromium 2> /dev/null >/dev/null || sudo apt install chromium
+	} && \
+	echo "====== python3 -m playwright install --with-deps chromium ======" && \
+	python3 -m playwright install --with-deps chromium && \
+	touch "$HOME/.playwright_deps_installed";
+}
+
+export DELETE_KEY=$(uuidgen); \
+	CID=$(docker ps --format '{{.ID}} {{.Names}}' | grep annotate_test_annotate | awk '{print $1}'); \
+	docker exec "$CID" sh -c "echo '$DELETE_KEY' > /etc/delete_all_key"; \
+	echo "KEY: $DELETE_KEY"
+
+echo "Deleting all currently existing data..."
+curl "http://localhost:9912/delete_all_data.php?delete_key=$DELETE_KEY"
+
+echo ""
+
+echo "Testing if 0 images are annotated"
+
+NR_ANNOTATED_ZERO_LINES=$(curl -sS localhost:9912/print_home.php | grep "Annotated: 0" | wc -l)
+if [[ $NR_ANNOTATED_ZERO_LINES -ne 1 ]]; then
+	echo "There was an error getting print_home.php: searching for 'Annotated: 0' yielded $NR_ANNOTATED_ZERO_LINES results instead of 1"
+	exit 1
+fi
+
+echo "Testing if startpage says there are no images available"
+NR_LINES_NO_IMAGES=$(curl -sS localhost:9912 | grep "No images are available" | wc -l)
+if [[ $NR_LINES_NO_IMAGES -ne 1 ]]; then
+	echo "There was an error getting startpage: searching for 'No images are available' yielded $NR_LINES_NO_IMAGES results instead of 1"
+	exit 1
+fi
+
+echo "Image upload test"
+image_upload_output_count=$(curl -sS -X POST -F "image=@tests/example.jpg" http://localhost:9912/upload_image.php | grep "src='print_image.php?filename=example.jpg" | wc -l)
+if [[ $image_upload_output_count -ne 1 ]]; then
+	echo "Failed to upload image"
+	exit 1
+fi
+
+echo "Testing if newly uploaded image is unannotated"
+NR_ANNOTATED_ZERO_LINES=$(curl -sS localhost:9912/print_home.php | grep "unannotated: 1" | wc -l)
+if [[ $NR_ANNOTATED_ZERO_LINES -ne 1 ]]; then
+	echo "There was an error getting print_home.php: searching for 'unannotated: 1' yielded $NR_ANNOTATED_ZERO_LINES results instead of 1"
+	exit 1
+fi
+
+source tests/model
+
+python3 _run_tests.py --chromium $*
+exit_code=$?
+
+if [[ $exit_code -ne 0 ]]; then
+	echo "_run_tests.py failed with exit_code $exit_code"
+	exit $exit_code
+fi
+
+bash tests/export_and_train
+
+CAT_OVERVIEW_PAGE=$(curl -sS "http://localhost:9912/export_annotations.php?format=html&show_categories[]=cat")
+
+if ! echo "$CAT_OVERVIEW_PAGE" | grep -q "example.jpg"; then
+	echo "Overview page does not contain example.jpg"
+	exit 1
+fi
+
+if ! echo "$CAT_OVERVIEW_PAGE" | grep -q "data.label..cat"; then
+	echo "Overview page does not contain 'data-label=\"cat\"'"
+	exit 1
+fi
+
+exit 0

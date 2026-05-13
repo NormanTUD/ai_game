@@ -1,0 +1,24 @@
+#!/bin/bash
+
+if [[ ! -e tests/last.pt ]]; then
+	echo "tests/last.pt not found"
+	exit 1
+fi
+
+if [[ -d /tmp/UFO_TEST/last_web_model ]]; then
+	rm -rf /tmp/UFO_TEST/last_web_model
+fi
+
+bash convert_to_tfjs tests/last.pt /tmp/UFO_TEST
+
+if [[ $exit_code != 0 ]]; then
+	echo "bash convert_to_tfjs tests/last.pt /tmp/UFO_TEST failed with: $exit_code"
+	exit $exit_code
+fi
+
+if [[ ! -d /tmp/UFO_TEST/last_web_model ]]; then
+	echo "/tmp/UFO_TEST/last_web_model not found"
+	exit 2
+fi
+
+exit 0

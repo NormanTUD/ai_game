@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -e
+
+php test_train_internal.php

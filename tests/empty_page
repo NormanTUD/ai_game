@@ -1,0 +1,8 @@
+#!/bin/bash
+
+bash tests/_empty_page
+exit_code=$?
+if [[ $exit_code -ne 0 ]]; then
+	echo "bash tests/empty_page failed with exit_code $exit_code"
+	exit 1
+fi

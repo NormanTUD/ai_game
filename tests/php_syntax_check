@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if command -v php 2>/dev/null >/dev/null; then
+	php -l *.php
+
+	exit_code=$?
+
+	if [[ $exit_code -ne 0 ]]; then
+		echo "php -l failed!"
+		exit 1
+	fi
+else
+	echo "PHP not installed. Cannot run php tests"
+fi

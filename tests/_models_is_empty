@@ -1,0 +1,10 @@
+#!/bin/bash
+
+nr_lines_no_model_available=$(curl -sS http://localhost:9912/models.php | grep "No models available" | wc -l)
+
+if [[ $nr_lines_no_model_available -ne 1 ]]; then
+	echo "bash tests/_models_is_empty failed: expected exactly 1 line with 'No models available', but got $nr_lines_no_model_available"
+	exit 1
+fi
+
+exit 0

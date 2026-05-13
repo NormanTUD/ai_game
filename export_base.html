@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotations Export</title>
+    <script src="libs/jquery.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0b0f;
+            --bg-raised: #16161e;
+            --bg-card: #1c1c28;
+            --bg-card-hover: #242434;
+            --accent: #7c6aff;
+            --accent-dim: rgba(124, 106, 255, 0.15);
+            --accent-glow: rgba(124, 106, 255, 0.4);
+            --green: #34d399;
+            --green-dim: rgba(52, 211, 153, 0.15);
+            --red: #f87171;
+            --red-dim: rgba(248, 113, 113, 0.15);
+            --yellow: #fbbf24;
+            --text: #e8e8f0;
+            --text-dim: #8888a0;
+            --text-muted: #555566;
+            --border: #2a2a3a;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            --card-size: 260px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(11, 11, 15, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 20px;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .header-top .logo {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        .header-top .home-info {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            flex: 1;
+        }
+
+        .header-top .home-info a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .header-top .home-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== TOOLBAR ===== */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 180px;
+            max-width: 360px;
+        }
+
+        .search-wrap .icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .search-wrap input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-size: 0.85rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-wrap input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .search-wrap input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Mode switcher */
+        .mode-switcher {
+            display: flex;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .mode-btn {
+            padding: 7px 14px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            border: none;
+            background: none;
+            transition: var(--transition);
+            white-space: nowrap;
+            user-select: none;
+            border-right: 1px solid var(--border);
+        }
+
+        .mode-btn:last-child { border-right: none; }
+
+        .mode-btn:hover { color: var(--text); background: var(--bg-raised); }
+
+        .mode-btn.active {
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+        }
+
+        .mode-btn.active.mode-delete {
+            background: var(--red);
+        }
+
+        .mode-btn.active.mode-curate {
+            background: var(--green);
+            color: #0b0b0f;
+        }
+
+        /* Action buttons */
+        .btn {
+            padding: 7px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-raised);
+            color: var(--text);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+        .btn:active { transform: scale(0.97); }
+
+        .btn.btn-green { border-color: var(--green); color: var(--green); }
+        .btn.btn-green:hover { background: var(--green-dim); }
+
+        .btn.btn-red { border-color: var(--red); color: var(--red); }
+        .btn.btn-red:hover { background: var(--red-dim); }
+
+        .btn .count-badge {
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .toolbar-sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+
+        /* Size slider */
+        .size-control {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .size-control input[type="range"] {
+            width: 80px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        /* ===== SELECTION BAR (appears when items selected) ===== */
+        .selection-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            z-index: 200;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .selection-bar.visible {
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        .selection-bar .sel-count {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .selection-bar .btn {
+            font-size: 0.8rem;
+        }
+
+        /* ===== GRID ===== */
+        #content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(var(--card-size), 1fr));
+            gap: 12px;
+            padding: 16px 20px 120px;
+        }
+
+        /* ===== CARDS ===== */
+        .container_div {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 2px solid transparent;
+            overflow: hidden;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .container_div:hover {
+            border-color: var(--border);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        /* Selected state */
+        .container_div.selected {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim), 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .container_div.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            z-index: 5;
+            animation: pop-in 0.2s ease;
+        }
+
+        @keyframes pop-in {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        /* Curated flash */
+        .container_div.curated-flash {
+            border-color: var(--green);
+            animation: flash-green 0.6s ease;
+        }
+
+        @keyframes flash-green {
+            0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6); }
+            100% { box-shadow: 0 0 0 12px rgba(52, 211, 153, 0); }
+        }
+
+        /* Deleted flash */
+        .container_div.deleted-flash {
+            opacity: 0.3;
+            transform: scale(0.95);
+            border-color: var(--red);
+        }
+
+        /* Image area */
+        .container_div .img-area {
+            position: relative;
+            width: 100%;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100px;
+            overflow: hidden;
+        }
+
+        .container_div .images {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Lazy placeholder */
+        .container_div .images.lazy {
+            opacity: 0;
+            min-height: 140px;
+        }
+
+        .container_div .images.loaded {
+            opacity: 1;
+        }
+
+        /* SVG overlay */
+        .a9s-annotationlayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .a9s-annotation .a9s-inner {
+            stroke: var(--accent);
+            stroke-width: 2px;
+            fill: rgba(124, 106, 255, 0.06);
+        }
+
+        .container_div:hover .a9s-annotation .a9s-inner {
+            stroke: var(--green);
+            fill: rgba(52, 211, 153, 0.08);
+        }
+
+        .a9s-annotation .a9s-label {
+            fill: white;
+            font-family: var(--font);
+            font-size: 10px;
+            font-weight: 600;
+            paint-order: stroke;
+            stroke: rgba(0,0,0,0.8);
+            stroke-width: 3px;
+            display: none;
+        }
+
+        /* FIX #2 & #5: Labels visible by default and toggling works */
+        body.show-labels .a9s-annotation .a9s-label {
+            display: block !important;
+        }
+
+        /* Card info bar */
+        .card-info {
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .card-info .tag {
+            font-size: 0.65rem;
+            padding: 2px 7px;
+            border-radius: 10px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .card-info .fname {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            font-family: var(--mono);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: auto;
+            max-width: 50%;
+        }
+
+        /* ===== LIGHTBOX ===== */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.93);
+            backdrop-filter: blur(6px);
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 40px;
+            animation: fade-in 0.15s ease;
+        }
+
+        .lightbox.open { display: flex; }
+
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+        .lightbox .lb-image-wrap {
+            position: relative;
+            display: inline-block;
+            max-width: 90vw;
+            max-height: 80vh;
+        }
+
+        .lightbox .lb-image-wrap img {
+            max-width: 90vw;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: var(--radius);
+            display: block;
+        }
+
+        .lightbox .lb-image-wrap .lb-svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .lightbox .lb-image-wrap .lb-svg-overlay .a9s-annotation .a9s-inner {
+            stroke: var(--accent);
+            stroke-width: 2px;
+            fill: rgba(124, 106, 255, 0.1);
+        }
+
+        .lightbox .lb-image-wrap .lb-svg-overlay .a9s-annotation .a9s-label {
+            fill: white;
+            font-family: var(--font);
+            font-size: 12px;
+            font-weight: 600;
+            paint-order: stroke;
+            stroke: rgba(0,0,0,0.8);
+            stroke-width: 3px;
+            display: block;
+        }
+
+        /* FIX #6: Individual annotation delete button in lightbox */
+        .lightbox .lb-annotations-list {
+            margin-top: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            max-width: 90vw;
+        }
+
+        .lightbox .lb-anno-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            color: var(--text);
+        }
+
+        .lightbox .lb-anno-item .lb-anno-label {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .lightbox .lb-anno-item .lb-anno-delete {
+            background: var(--red);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 0.65rem;
+            cursor: pointer;
+            font-weight: 700;
+            transition: var(--transition);
+        }
+
+        .lightbox .lb-anno-item .lb-anno-delete:hover {
+            background: #ef4444;
+            transform: scale(1.1);
+        }
+
+        .lightbox .lb-close {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            font-size: 2rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: var(--transition);
+            line-height: 1;
+        }
+
+        .lightbox .lb-close:hover { color: white; transform: scale(1.2); }
+
+        .lightbox .lb-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2.5rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 20px;
+            transition: var(--transition);
+            user-select: none;
+        }
+
+        .lightbox .lb-nav:hover { color: white; }
+        .lightbox .lb-prev { left: 8px; }
+        .lightbox .lb-next { right: 8px; }
+
+        .lightbox .lb-info {
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-align: center;
+        }
+
+        /* FIX #3: Delete button always red */
+        .mode-btn.mode-delete {
+            color: var(--red);
+        }
+        .mode-btn.mode-delete:hover {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+        .mode-btn.active.mode-delete {
+            background: var(--red);
+            color: white;
+        }
+
+        /* ===== PAGINATION ===== */
+        .pagination {
+            padding: 12px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .pagination a {
+            padding: 5px 10px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .pagination a:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+
+        .pagination a b {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* ===== NO RESULTS ===== */
+        .no-results {
+            display: none;
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-muted);
+            grid-column: 1 / -1;
+        }
+
+        .no-results.show { display: block; }
+        .no-results .emoji { font-size: 2.5rem; margin-bottom: 8px; }
+
+        /* ===== SCROLL TOP ===== */
+        .scroll-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 90;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--accent-glow);
+            transition: var(--transition);
+        }
+
+        .scroll-top.show { display: flex; }
+        .scroll-top:hover { transform: translateY(-2px) scale(1.1); }
+
+        /* ===== TOAST ===== */
+        .toast-area {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            color: var(--text);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            animation: toast-in 0.25s ease;
+            pointer-events: auto;
+        }
+
+        .toast.success { border-left: 3px solid var(--green); }
+        .toast.error { border-left: 3px solid var(--red); }
+        .toast.info { border-left: 3px solid var(--accent); }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ===== KEYBOARD HINT ===== */
+        .kbd-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 90;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+        }
+
+        .kbd-hint kbd {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-family: var(--mono);
+            font-size: 0.65rem;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 640px) {
+            .header, #content { padding-left: 10px; padding-right: 10px; }
+            #content { gap: 8px; }
+            .toolbar { gap: 6px; }
+            .kbd-hint { display: none; }
+        }
+
+	/* Edit Button in Card */
+	.card-info .btn-edit {
+	    font-size: 0.75rem;
+	    padding: 2px 8px;
+	    border-radius: var(--radius-sm);
+	    background: var(--accent-dim);
+	    color: var(--accent);
+	    text-decoration: none;
+	    font-weight: 700;
+	    margin-left: 6px;
+	    transition: var(--transition);
+	    cursor: pointer;
+	    border: 1px solid transparent;
+	}
+
+	.card-info .btn-edit:hover {
+	    background: var(--accent);
+	    color: white;
+	    border-color: var(--accent);
+	    transform: scale(1.1);
+	}
+
+	/* ===== LABEL FILTER BAR ===== */
+	.label-filter-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 0 8px;
+		flex-wrap: wrap;
+		border-top: 1px solid var(--border);
+	}
+
+	.label-filter-bar .filter-label {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-right: 4px;
+		white-space: nowrap;
+	}
+
+	.label-chip {
+		font-size: 0.7rem;
+		padding: 3px 10px;
+		border-radius: 12px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		color: var(--text-dim);
+		cursor: pointer;
+		transition: var(--transition);
+		user-select: none;
+		white-space: nowrap;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.label-chip:hover {
+		border-color: var(--accent);
+		color: var(--text);
+		background: var(--bg-raised);
+	}
+
+	.label-chip.active {
+		background: var(--accent-dim);
+		border-color: var(--accent);
+		color: var(--accent);
+		font-weight: 600;
+	}
+
+	.label-chip .chip-count {
+		font-size: 0.6rem;
+		background: rgba(255,255,255,0.08);
+		padding: 0 5px;
+		border-radius: 8px;
+		font-weight: 700;
+		min-width: 16px;
+		text-align: center;
+	}
+
+	.label-chip.active .chip-count {
+		background: var(--accent);
+		color: white;
+	}
+
+	.label-chip.chip-all {
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.label-chip.chip-all.active {
+		background: var(--accent);
+		color: white;
+		border-color: var(--accent);
+	}
+    </style>
+</head>
+<body class="show-labels">
+	<div class="toast-area" id="toasts"></div>
+
+	<!-- HEADER -->
+	<div class="header">
+		<div class="header-top">
+			<span class="logo">🔍 Annotations</span>
+			<span class="home-info" id="tab_home_top"></span>
+		</div>
+		<div class="toolbar">
+			<div class="search-wrap">
+				<span class="icon">⌕</span>
+				<input type="text" id="searchInput" placeholder="Filter by filename or label... ( / )" autocomplete="off" spellcheck="false" />
+			</div>
+
+			<div class="mode-switcher">
+				<button class="mode-btn mode-browse active" data-mode="browse" title="Browse mode — click to view in lightbox">🖅 Browse</button>
+				<button class="mode-btn mode-select" data-mode="select" title="Select mode — click cards to select for bulk actions">☑ Select</button>
+				<button class="mode-btn mode-curate" data-mode="curate" title="Curate mode — click a card to instantly curate it">✓ Curate</button>
+				<button class="mode-btn mode-delete" data-mode="delete" title="Delete mode — click a card to delete its annotations">✗ Delete</button>
+			</div>
+
+			<div class="toolbar-sep"></div>
+
+			<button class="btn" id="btnLabels" title="Toggle annotation labels (L)" style="border-color: var(--accent);">🏷 Labels</button>
+			<button class="btn" id="btnBoxes" title="Toggle bounding boxes (B)">☐ Boxes</button>
+
+			<div class="toolbar-sep"></div>
+
+		    <div class="size-control">
+			<span>Size</span>
+			<input type="range" id="sizeSlider" min="140" max="450" value="260" step="10" />
+		    </div>
+
+		    <div style="flex:1"></div>
+
+		    <span id="countDisplay" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--mono);"></span>
+        </div>
+
+	<!-- LABEL FILTER BAR -->
+	<div class="label-filter-bar" id="labelFilterBar">
+	    <span class="filter-label">Labels:</span>
+	    <button class="label-chip chip-all active" data-filter="__all__">All</button>
+	    <!-- Chips will be dynamically populated -->
+	</div>
+
+    </div>
+
+    <!-- GRID -->
+    <div id="content">
+        REPLACEME
+    </div>
+    <div class="no-results" id="noResults">
+        <div class="emoji">🔇</div>
+        <p>No images match your filter</p>
+    </div>
+
+    <!-- SELECTION BAR -->
+    <div class="selection-bar" id="selectionBar">
+        <span class="sel-count"><span id="selCount">0</span> selected</span>
+        <button class="btn btn-green" id="btnCurateSelected">✓ Curate</button>
+        <button class="btn btn-red" id="btnDeleteSelected">✗ Delete</button>
+        <button class="btn" id="btnDeselectAll">Deselect</button>
+    </div>
+
+    <!-- LIGHTBOX -->
+    <div class="lightbox" id="lightbox">
+        <span class="lb-close" id="lbClose">×</span>
+        <span class="lb-nav lb-prev" id="lbPrev">‹</span>
+        <span class="lb-nav lb-next" id="lbNext">›</span>
+        <div class="lb-image-wrap" id="lbImageWrap">
+            <img id="lbImg" src="" alt="" />
+            <svg id="lbSvgOverlay" class="lb-svg-overlay" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="lb-annotations-list" id="lbAnnotationsList"></div>
+        <div class="lb-info" id="lbInfo"></div>
+    </div>
+
+    <!-- SCROLL TOP -->
+    <button class="scroll-top" id="scrollTop">↑</button>
+
+    <!-- KEYBOARD HINT -->
+    <div class="kbd-hint">
+        <kbd>/</kbd> Search &nbsp; <kbd>L</kbd> Labels &nbsp; <kbd>B</kbd> Boxes &nbsp; <kbd>Esc</kbd> Close
+    </div>
+
+    <script>
+    (function() {
+        "use strict";
+
+        // ===== STATE =====
+        let currentMode = 'browse'; // browse | select | curate | delete
+        let selectedCards = new Set();
+        let labelsVisible = true; // FIX #2: Labels visible by default
+        let boxesVisible = true;
+        let lightboxOpen = false;
+        let lightboxIndex = 0;
+        let visibleCards = [];
+        let modeToastEl = null; // FIX #4: Track current mode toast
+	let activeFilters = new Set(); // empty = show all
+
+        // ===== HELPERS =====
+        function toast(msg, type = 'info', isMode = false) {
+            // FIX #4: If this is a mode toast, remove the previous one immediately
+            if (isMode) {
+                if (modeToastEl && modeToastEl.parentNode) {
+                    modeToastEl.remove();
+                }
+            }
+
+            const el = document.createElement('div');
+            el.className = 'toast ' + type;
+            el.textContent = msg;
+            document.getElementById('toasts').appendChild(el);
+
+            if (isMode) {
+                modeToastEl = el;
+            }
+
+            setTimeout(() => {
+                if (el.parentNode) el.remove();
+                if (modeToastEl === el) modeToastEl = null;
+            }, 3000);
+        }
+
+        function getFilenameFromCard(card) {
+            const img = card.querySelector('.images');
+            if (!img) return '';
+            const src = img.dataset.src || img.src || '';
+            const match = src.match(/filename=([^&]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function getAnnotationsFromCard(card) {
+            // Returns array of {id, label, rect} from the card's SVG annotations
+            const annos = card.querySelectorAll('.a9s-annotation');
+            const result = [];
+            annos.forEach(a => {
+		                    const label = a.getAttribute('data-label') || '';
+                const id = a.getAttribute('data-id') || a.getAttribute('data-annotarius-id') || '';
+                const inner = a.querySelector('.a9s-inner');
+                let rect = null;
+                if (inner) {
+                    const x = inner.getAttribute('x') || '0';
+                    const y = inner.getAttribute('y') || '0';
+                    const w = inner.getAttribute('width') || '0';
+                    const h = inner.getAttribute('height') || '0';
+                    rect = { x: parseFloat(x), y: parseFloat(y), w: parseFloat(w), h: parseFloat(h) };
+                }
+                result.push({ id, label, rect, element: a });
+            });
+            return result;
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selectionBar');
+            const count = selectedCards.size;
+            document.getElementById('selCount').textContent = count;
+            bar.classList.toggle('visible', count > 0);
+        }
+
+        function updateCountDisplay() {
+            const all = document.querySelectorAll('.container_div');
+            const visible = document.querySelectorAll('.container_div:not([style*="display: none"])');
+            document.getElementById('countDisplay').textContent =
+                visible.length === all.length
+                    ? `${all.length} images`
+                    : `${visible.length} / ${all.length}`;
+        }
+
+        // ===== LAZY LOADING =====
+        const lazyObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                        img.onload = () => img.classList.add('loaded');
+                        img.classList.remove('lazy');
+                        if (!img.complete) img.classList.add('lazy');
+                    }
+                    lazyObserver.unobserve(img);
+                }
+            });
+        }, { rootMargin: '300px 0px', threshold: 0.01 });
+
+        function setupLazyLoading() {
+            document.querySelectorAll('.container_div .images').forEach(img => {
+                const src = img.getAttribute('src');
+                if (src && !src.startsWith('data:')) {
+                    img.dataset.src = src;
+                    img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"/>';
+                    img.classList.add('lazy');
+                }
+                lazyObserver.observe(img);
+            });
+        }
+
+        // ===== ENHANCE CARDS =====
+	    function enhanceCards() {
+		    const cards = document.querySelectorAll('.container_div');
+		    cards.forEach(card => {
+			    // Wrap image + svg in img-area
+			    const img = card.querySelector('.images');
+			    const svg = card.querySelector('.a9s-annotationlayer');
+
+			    if (img && !card.querySelector('.img-area')) {
+				    const area = document.createElement('div');
+				    area.className = 'img-area';
+				    card.insertBefore(area, img);
+				    area.appendChild(img);
+				    if (svg) area.appendChild(svg);
+			    }
+
+			    // Add info bar
+			    if (!card.querySelector('.card-info')) {
+				    const info = document.createElement('div');
+				    info.className = 'card-info';
+
+				    // Labels from annotations
+				    const annos = card.querySelectorAll('.a9s-annotation');
+				    const labelSet = new Set();
+				    annos.forEach(a => {
+					    const l = a.getAttribute('data-label');
+					    if (l) labelSet.add(l);
+				    });
+				    labelSet.forEach(l => {
+					    const tag = document.createElement('span');
+					    tag.className = 'tag';
+					    tag.textContent = l;
+					    info.appendChild(tag);
+				    });
+
+				    // Filename
+				    const fn = getFilenameFromCard(card);
+				    if (fn) {
+					    const fname = document.createElement('span');
+					    fname.className = 'fname';
+					    fname.textContent = fn;
+					    fname.title = fn;
+					    info.appendChild(fname);
+
+					    // Edit-Button
+					    const editLink = document.createElement('a');
+					    editLink.className = 'btn-edit';
+					    editLink.href = 'index.php?edit=' + encodeURIComponent(fn);
+					    editLink.target = '_blank';
+					    editLink.textContent = '✎';
+					    editLink.title = 'Edit in new tab';
+					    editLink.addEventListener('click', (e) => {
+						    e.stopPropagation();
+					    });
+					    info.appendChild(editLink);
+				    }
+
+				    card.appendChild(info);
+			    }
+
+			    // Click handler
+			    card.addEventListener('click', () => handleCardClick(card));
+		    });
+	    }
+
+        // ===== CARD CLICK HANDLER =====
+        function handleCardClick(card) {
+            const fn = getFilenameFromCard(card);
+
+            switch (currentMode) {
+                case 'browse':
+                    openLightbox(card);
+                    break;
+
+                case 'select':
+                    toggleSelect(card);
+                    break;
+
+                case 'curate':
+                    if (!fn) return;
+                    curateAnno(fn);
+                    card.classList.add('curated-flash');
+                    setTimeout(() => card.classList.remove('curated-flash'), 800);
+                    toast('Curated: ' + fn, 'success');
+                    break;
+
+                case 'delete':
+                    if (!fn) return;
+                    if (!confirm('Delete ALL annotations for ' + fn + '?')) return;
+                    deleteAllAnno(fn);
+                    card.classList.add('deleted-flash');
+                    toast('Deleted all annotations: ' + fn, 'error');
+                    break;
+            }
+        }
+
+        function toggleSelect(card) {
+            if (selectedCards.has(card)) {
+                selectedCards.delete(card);
+                card.classList.remove('selected');
+            } else {
+                selectedCards.add(card);
+                card.classList.add('selected');
+            }
+            updateSelectionBar();
+        }
+
+        // ===== API CALLS =====
+        function curateAnno(filename) {
+            $.ajax({
+                url: 'curate_anno.php?image=' + encodeURIComponent(filename),
+                type: 'get'
+            });
+        }
+
+        function deleteAllAnno(filename) {
+            $.ajax({
+                url: 'delete_all_anno.php?image=' + encodeURIComponent(filename),
+                type: 'get'
+            });
+        }
+
+        // FIX #6: Delete a single annotation by its annotarius_id
+        function deleteSingleAnno(annotariusId, callback) {
+            $.ajax({
+                url: 'delete_annotation.php',
+                type: 'POST',
+                data: { source: 'export', id: annotariusId },
+                success: function(data) {
+                    if (callback) callback(true);
+                },
+                error: function() {
+                    if (callback) callback(false);
+                }
+            });
+        }
+
+        // ===== LIGHTBOX =====
+        function openLightbox(card) {
+            visibleCards = Array.from(document.querySelectorAll('.container_div'))
+                .filter(c => c.style.display !== 'none');
+            lightboxIndex = visibleCards.indexOf(card);
+            if (lightboxIndex === -1) lightboxIndex = 0;
+
+            updateLightboxImage();
+            document.getElementById('lightbox').classList.add('open');
+            lightboxOpen = true;
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('open');
+            lightboxOpen = false;
+            document.body.style.overflow = '';
+        }
+
+        function updateLightboxImage() {
+            const card = visibleCards[lightboxIndex];
+            if (!card) return;
+
+            const img = card.querySelector('.images');
+            const src = img?.dataset?.src || img?.src || '';
+            document.getElementById('lbImg').src = src;
+
+            // FIX #1: Clone SVG annotations into lightbox
+            const svgOverlay = document.getElementById('lbSvgOverlay');
+            // Clear previous
+            svgOverlay.innerHTML = '';
+
+            const cardSvg = card.querySelector('.a9s-annotationlayer');
+            if (cardSvg) {
+                // Copy the viewBox from the card SVG
+                const vb = cardSvg.getAttribute('viewBox');
+                if (vb) svgOverlay.setAttribute('viewBox', vb);
+                // Clone all annotation groups
+                Array.from(cardSvg.children).forEach(child => {
+                    svgOverlay.appendChild(child.cloneNode(true));
+                });
+            }
+
+            // FIX #6: Build annotation list with individual delete buttons
+            const annoList = document.getElementById('lbAnnotationsList');
+            annoList.innerHTML = '';
+
+            const annotations = getAnnotationsFromCard(card);
+            annotations.forEach(anno => {
+                const item = document.createElement('div');
+                item.className = 'lb-anno-item';
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'lb-anno-label';
+                labelSpan.textContent = anno.label || '(unlabeled)';
+                item.appendChild(labelSpan);
+
+                if (anno.rect) {
+                    const coordSpan = document.createElement('span');
+                    coordSpan.textContent = `[${Math.round(anno.rect.x)}, ${Math.round(anno.rect.y)}, ${Math.round(anno.rect.w)}×${Math.round(anno.rect.h)}]`;
+                    coordSpan.style.fontSize = '0.65rem';
+                    coordSpan.style.color = 'var(--text-muted)';
+                    item.appendChild(coordSpan);
+                }
+
+                // Individual delete button
+                if (anno.id) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'lb-anno-delete';
+                    delBtn.textContent = '✗';
+                    delBtn.title = 'Delete this annotation';
+                    delBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete annotation "${anno.label}" (ID: ${anno.id})?`)) return;
+                        deleteSingleAnno(anno.id, (success) => {
+                            if (success) {
+                                // Remove from card DOM
+                                if (anno.element && anno.element.parentNode) {
+                                    anno.element.remove();
+                                }
+                                // Remove from lightbox list
+                                item.remove();
+                                // Remove from lightbox SVG overlay
+                                const svgAnnos = svgOverlay.querySelectorAll(`[data-id="${anno.id}"], [data-annotarius-id="${anno.id}"]`);
+                                svgAnnos.forEach(el => el.remove());
+                                toast(`Deleted annotation: ${anno.label}`, 'error');
+                            } else {
+                                toast('Failed to delete annotation', 'error');
+                            }
+                        });
+                    });
+                    item.appendChild(delBtn);
+                }
+
+                annoList.appendChild(item);
+            });
+
+            // Info line
+            const labels = annotations.map(a => a.label).filter(Boolean).join(', ');
+            const fn = getFilenameFromCard(card);
+            document.getElementById('lbInfo').textContent =
+                `${lightboxIndex + 1} / ${visibleCards.length}` +
+                (labels ? `  —  ${labels}` : '') +
+                (fn ? `  —  ${fn}` : '');
+        }
+
+        function lightboxPrev() {
+            lightboxIndex = (lightboxIndex - 1 + visibleCards.length) % visibleCards.length;
+            updateLightboxImage();
+        }
+
+        function lightboxNext() {
+            lightboxIndex = (lightboxIndex + 1) % visibleCards.length;
+            updateLightboxImage();
+        }
+
+        document.getElementById('lbClose').addEventListener('click', closeLightbox);
+        document.getElementById('lbPrev').addEventListener('click', (e) => { e.stopPropagation(); lightboxPrev(); });
+        document.getElementById('lbNext').addEventListener('click', (e) => { e.stopPropagation(); lightboxNext(); });
+        document.getElementById('lightbox').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('lightbox')) closeLightbox();
+        });
+
+        // ===== MODE SWITCHER =====
+        // FIX #4: Mode toasts don't stack — only one at a time
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                currentMode = mode;
+
+                // Update active state
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Clear selections when leaving select mode
+                if (mode !== 'select') {
+                    selectedCards.forEach(c => c.classList.remove('selected'));
+                    selectedCards.clear();
+                    updateSelectionBar();
+                }
+
+                // Update cursor style on cards
+                const cards = document.querySelectorAll('.container_div');
+                cards.forEach(card => {
+                    switch (mode) {
+                        case 'browse': card.style.cursor = 'zoom-in'; break;
+                        case 'select': card.style.cursor = 'pointer'; break;
+                        case 'curate': card.style.cursor = 'cell'; break;
+                        case 'delete': card.style.cursor = 'crosshair'; break;
+                    }
+                });
+
+                // FIX #4: Pass isMode=true so previous mode toast is removed
+                toast(`Mode: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`, 'info', true);
+            });
+        });
+
+        // ===== BULK ACTIONS =====
+        document.getElementById('btnCurateSelected').addEventListener('click', () => {
+            if (selectedCards.size === 0) return;
+            let count = 0;
+            selectedCards.forEach(card => {
+                const fn = getFilenameFromCard(card);
+                if (fn) {
+                    curateAnno(fn);
+                    card.classList.remove('selected');
+                    card.classList.add('curated-flash');
+                    setTimeout(() => card.classList.remove('curated-flash'), 800);
+                    count++;
+                }
+            });
+            selectedCards.clear();
+            updateSelectionBar();
+            toast(`Curated ${count} images`, 'success');
+        });
+
+        document.getElementById('btnDeleteSelected').addEventListener('click', () => {
+            if (selectedCards.size === 0) return;
+            if (!confirm(`Delete annotations for ${selectedCards.size} images?`)) return;
+
+            let count = 0;
+            selectedCards.forEach(card => {
+                const fn = getFilenameFromCard(card);
+                if (fn) {
+                    deleteAllAnno(fn);
+                    card.classList.remove('selected');
+                    card.classList.add('deleted-flash');
+                    count++;
+                }
+            });
+            selectedCards.clear();
+            updateSelectionBar();
+            toast(`Deleted ${count} annotations`, 'error');
+        });
+
+        document.getElementById('btnDeselectAll').addEventListener('click', () => {
+            selectedCards.forEach(c => c.classList.remove('selected'));
+            selectedCards.clear();
+            updateSelectionBar();
+        });
+
+        // ===== TOGGLE LABELS =====
+        // FIX #2 & #5: Labels visible by default, toggle actually works
+        document.getElementById('btnLabels').addEventListener('click', () => {
+            labelsVisible = !labelsVisible;
+            document.body.classList.toggle('show-labels', labelsVisible);
+            document.getElementById('btnLabels').style.borderColor = labelsVisible ? 'var(--accent)' : '';
+        });
+
+        // ===== TOGGLE BOXES =====
+        document.getElementById('btnBoxes').addEventListener('click', () => {
+            boxesVisible = !boxesVisible;
+            document.querySelectorAll('.a9s-annotationlayer').forEach(el => {
+                el.style.display = boxesVisible ? '' : 'none';
+            });
+            document.getElementById('btnBoxes').style.borderColor = boxesVisible ? '' : 'var(--red)';
+        });
+
+        // ===== SIZE SLIDER =====
+        document.getElementById('sizeSlider').addEventListener('input', (e) => {
+            document.getElementById('content').style.setProperty('--card-size', e.target.value + 'px');
+        });
+
+	    // ===== UNIFIED FILTER (search + label chips) =====
+	    let searchDebounce = null;
+
+	    function applyFilters() {
+		    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+		    const cards = document.querySelectorAll('.container_div');
+		    let visible = 0;
+
+		    cards.forEach(card => {
+			    let show = true;
+
+			    // Label filter
+			    if (activeFilters.size > 0) {
+				    const cardLabels = new Set();
+				    card.querySelectorAll('.a9s-annotation').forEach(a => {
+					    const l = (a.getAttribute('data-label') || '').toLowerCase();
+					    if (l) cardLabels.add(l);
+				    });
+				    // Card must have at least one of the active filter labels
+				    const hasMatch = [...activeFilters].some(f => cardLabels.has(f));
+				    if (!hasMatch) show = false;
+			    }
+
+			    // Text search filter
+			    if (show && q) {
+				    const fn = getFilenameFromCard(card).toLowerCase();
+				    const tags = Array.from(card.querySelectorAll('.tag'))
+					    .map(t => t.textContent.toLowerCase()).join(' ');
+				    const searchable = fn + ' ' + tags;
+				    if (!searchable.includes(q)) show = false;
+			    }
+
+			    card.style.display = show ? '' : 'none';
+			    if (show) visible++;
+		    });
+
+		    document.getElementById('noResults').classList.toggle('show', visible === 0 && (q.length > 0 || activeFilters.size > 0));
+		    updateCountDisplay();
+	    }
+
+    document.getElementById('searchInput').addEventListener('input', () => {
+	    clearTimeout(searchDebounce);
+	    searchDebounce = setTimeout(() => applyFilters(), 200);
+    });
+
+        // ===== KEYBOARD SHORTCUTS =====
+        document.addEventListener('keydown', (e) => {
+            // Lightbox navigation
+            if (lightboxOpen) {
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') lightboxPrev();
+                if (e.key === 'ArrowRight') lightboxNext();
+                return;
+            }
+
+            // Don't trigger if typing in search
+            if (e.target.tagName === 'INPUT') return;
+
+            switch (e.key) {
+                case '/':
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
+                    break;
+                case 'Escape':
+                    document.getElementById('searchInput').value = '';
+                    document.getElementById('searchInput').dispatchEvent(new Event('input'));
+                    break;
+                case 'l':
+                case 'L':
+                    document.getElementById('btnLabels').click();
+                    break;
+                case 'b':
+                case 'B':
+                    document.getElementById('btnBoxes').click();
+                    break;
+                case '1':
+                    document.querySelector('[data-mode="browse"]').click();
+                    break;
+                case '2':
+                    document.querySelector('[data-mode="select"]').click();
+                    break;
+                case '3':
+                    document.querySelector('[data-mode="curate"]').click();
+                    break;
+                case '4':
+                    document.querySelector('[data-mode="delete"]').click();
+                    break;
+            }
+        });
+
+        // ===== SCROLL TO TOP =====
+        window.addEventListener('scroll', () => {
+            document.getElementById('scrollTop').classList.toggle('show', window.scrollY > 400);
+        });
+
+        document.getElementById('scrollTop').addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // ===== PRINT HOME (load stats ribbon) =====
+        function printHome() {
+            $.ajax({
+                url: "print_home.php",
+                type: "GET",
+                dataType: "html",
+                success: function(data) {
+                    document.getElementById('tab_home_top').innerHTML = data;
+                }
+            });
+        }
+
+	    // ===== BUILD LABEL FILTER CHIPS =====
+		function buildLabelFilterBar() {
+		    const bar = document.getElementById('labelFilterBar');
+		    if (!bar) return;
+
+		    // Count labels on current page
+		    const labelCounts = {};
+		    document.querySelectorAll('.container_div').forEach(card => {
+			const annos = card.querySelectorAll('.a9s-annotation');
+			const seen = new Set();
+			annos.forEach(a => {
+			    const l = (a.getAttribute('data-label') || '').toLowerCase();
+			    if (l && !seen.has(l)) {
+				seen.add(l);
+				labelCounts[l] = (labelCounts[l] || 0) + 1;
+			    }
+			});
+		    });
+
+		    // Merge with all known categories from backend
+		    const allCats = window.__ALL_CATEGORIES || [];
+		    allCats.forEach(cat => {
+			const name = cat.name.toLowerCase();
+			if (!(name in labelCounts)) {
+			    labelCounts[name] = 0;
+			}
+		    });
+
+		    // Sort: labels with counts first (desc), then zero-count alphabetically
+		    const sorted = Object.entries(labelCounts).sort((a, b) => {
+			if (b[1] !== a[1]) return b[1] - a[1];
+			return a[0].localeCompare(b[0]);
+		    });
+
+		    // Create chips
+		    sorted.forEach(([label, count]) => {
+			const chip = document.createElement('button');
+			chip.className = 'label-chip';
+			if (count === 0) chip.style.opacity = '0.5';
+			chip.dataset.filter = label;
+			chip.innerHTML = `${label} <span class="chip-count">${count}</span>`;
+			chip.addEventListener('click', () => toggleLabelFilter(label, chip));
+			bar.appendChild(chip);
+		    });
+
+		    // "All" button handler
+		    bar.querySelector('.chip-all').addEventListener('click', () => {
+			activeFilters.clear();
+			bar.querySelectorAll('.label-chip').forEach(c => c.classList.remove('active'));
+			bar.querySelector('.chip-all').classList.add('active');
+			applyFilters();
+		    });
+		}
+
+		function toggleLabelFilter(label, chip) {
+		    const bar = document.getElementById('labelFilterBar');
+		    const allChip = bar.querySelector('.chip-all');
+
+		    if (activeFilters.has(label)) {
+			activeFilters.delete(label);
+			chip.classList.remove('active');
+		    } else {
+			activeFilters.add(label);
+			chip.classList.add('active');
+		    }
+
+		    // Update "All" chip state
+		    if (activeFilters.size === 0) {
+			allChip.classList.add('active');
+		    } else {
+			allChip.classList.remove('active');
+		    }
+
+		    applyFilters();
+		}
+
+
+        // ===== INIT =====
+        $(document).ready(function() {
+            // FIX #2: Labels visible by default — add class on load
+            document.body.classList.add('show-labels');
+            document.getElementById('btnLabels').style.borderColor = 'var(--accent)';
+
+            // Setup lazy loading
+            setupLazyLoading();
+
+            // Set initial mode cursor
+            document.querySelectorAll('.container_div').forEach(card => {
+                card.style.cursor = 'zoom-in';
+            });
+
+		enhanceCards();
+		buildLabelFilterBar();
+
+            // Update count
+            updateCountDisplay();
+
+            // Load home stats
+            printHome();
+
+            // Apply URL params for mode
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('curate_on_click')) {
+                document.querySelector('[data-mode="curate"]').click();
+            } else if (params.get('delete_on_click')) {
+                document.querySelector('[data-mode="delete"]').click();
+            }
+
+            console.log(`✨ Export page loaded: ${document.querySelectorAll('.container_div').length} cards`);
+        });
+
+    })();
+    </script>
+</body>
+</html>

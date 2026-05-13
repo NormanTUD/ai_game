@@ -1,0 +1,25 @@
+#!/bin/bash
+
+CURRENT_USER=$(whoami)
+
+if ! getent group docker >/dev/null; then
+	echo "Error: The 'docker' group does not exist. Please install Docker."
+	exit 1
+fi
+
+if id -nG "$CURRENT_USER" | grep -qw docker; then
+	true
+else
+	echo "Error: $CURRENT_USER is not a member of the docker group."
+	echo "Add the user with the following command:"
+	echo "    sudo usermod -aG docker $CURRENT_USER"
+	echo "Then you need to log out and log back in, or restart the web server."
+	exit 1
+fi
+
+if ! docker info 2>/dev/null >/dev/null; then
+	echo "Error: Docker cannot be used by user $CURRENT_USER."
+	exit 1
+fi
+
+exit 0

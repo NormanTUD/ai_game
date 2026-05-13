@@ -1,0 +1,90 @@
+#!/bin/bash
+
+HOST="localhost"
+PORT="9912"
+
+print_help() {
+	echo "Usage: $0 [-h host] [-p port]"
+	echo "Defaults: host=localhost, port=1112"
+}
+
+# parse long flag first
+if [[ "$1" == "--help" ]]; then
+	print_help
+	exit 0
+fi
+
+while getopts "h:p:" opt; do
+	case "$opt" in
+		h) HOST="$OPTARG" ;;
+		p) PORT="$OPTARG" ;;
+		*) print_help; exit 1 ;;
+	esac
+done
+
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+cd "$SCRIPT_DIR" || exit 1
+
+sleep 10
+
+tmpfile=$(mktemp)
+
+model_name="auto_test_model_$RANDOM"
+
+base_url="http://$HOST:$PORT"
+models_url="$base_url/models.php"
+upload_model_url="$base_url/upload_model.php"
+
+echo "Pushing example model $model_name to $upload_model_url"
+
+curl -sS "$upload_model_url" \
+	-X POST \
+	-H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' \
+	-H 'Accept: */*' \
+	-H 'Accept-Language: en-US,en;q=0.5' \
+	-H "Referer: $models_url" \
+	-H "Origin: $base_url" \
+	-H 'DNT: 1' \
+	-H 'Connection: keep-alive' \
+	-H 'Cookie: language_cookie=de; PHPSESSID=eipc9q7sc1rg3ul754et4kfeet' \
+	-F "model_name=$model_name" \
+	-F "pt_model_file=@yolo11n.pt" 2>&1 | tee "$tmpfile"
+
+echo ""
+
+if ! grep -q "saved into DB" "$tmpfile"; then
+	echo "ERROR: $tmpfile does not contain 'saved into DB'"
+	exit 1
+fi
+
+if ! grep -q "Done importing model" "$tmpfile"; then
+	echo "ERROR: $tmpfile does not contain 'Done importing model'"
+	exit 2
+fi
+
+if ! grep -q "Inserting label" "$tmpfile"; then
+	echo "ERROR: $tmpfile does not contain 'Inserting label'"
+	exit 3
+fi
+
+model_name_uuid=$(grep "saved into DB" "$tmpfile" | sed -e "s#.*Model '\(.*\)' saved into DB.*#\\1#")
+echo "extracted model name: $model_name_uuid"
+
+echo "Curling $models_url to check if it contains $model_name_uuid"
+if ! curl -sS "$models_url" | grep -q "$model_name_uuid"; then
+	echo "Model-page does not contain $model_name_uuid"
+	exit 4
+fi
+
+#delete_url="$models_url?delete_model=$model_name_uuid"
+#echo "Curling $delete_url"
+#curl -sS "$delete_url" >/dev/null
+
+#if curl -sS "$models_url" | grep "$model_name_uuid"; then
+#	echo "Model-Name $model_name_uuid is contained in models.php even after deleting it"
+#	exit 5
+#fi
+
+rm "$tmpfile"
+
+exit 0

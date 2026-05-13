@@ -1,0 +1,12 @@
+#!/bin/bash
+
+bash docker.sh --local-port 9912 --instance-name annotate_test
+exit_code=$?
+
+if [[ $exit_code -ne 0 ]]; then
+	echo "bash docker.sh --local-port 9912 --instance-name annotate_test failed with exit code $exit_code"
+	exit $exit_code
+fi
+
+echo "Waiting 10 seconds before continuing..."
+sleep 10

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+source tests/php_syntax_check
+
+source tests/bash_syntax_check
+
+source tests/run_in_docker
+
+source tests/empty_page
+
+source tests/linkchecker
+
+source tests/playwright
+
+if ! php test_batch_upload.php; then
+	echo "php test_batch_upload.php failed"
+	exit 1
+fi
+

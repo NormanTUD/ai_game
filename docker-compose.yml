@@ -1,0 +1,45 @@
+services:
+  annotate_mariadb:
+    image: mariadb:latest
+    container_name: annotate_mariadb
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_ROOT_HOST=%
+    volumes:
+      - /home/norman/asddd:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/disable_locks.cnf:ro
+    networks:
+      - annotate_network
+
+  annotate_annotate:
+    build:
+      context: .
+      args:
+        - INSTANCE_NAME=annotate
+    container_name: annotate_annotate
+    restart: unless-stopped
+    depends_on:
+      - annotate_mariadb
+    environment:
+      - DB_HOST=annotate_mariadb
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root
+    networks:
+      - annotate_network
+    ports:
+      - 9911:8080
+    tmpfs:
+      - /tmp:rw
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - .:/var/www/html
+
+volumes:
+  mariadb_data:
+
+networks:
+  annotate_network:
+    driver: bridge

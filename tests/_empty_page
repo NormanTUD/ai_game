@@ -1,0 +1,13 @@
+#!/bin/bash
+
+page=$(curl -sS http://localhost:9912/)
+
+nr_no_res_str=$(echo $page | grep "No images are available" | wc -l)
+
+if [[ $nr_no_res_str -ne 1 ]]; then
+	echo "!!! page does not contain 'No images are available' exactly in one line !!!"
+	echo "$page"
+	exit 1
+fi
+
+exit 0
