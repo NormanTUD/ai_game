@@ -241,6 +241,13 @@
 
 	async function loadTfModel(modelUuid) {
 		if (typeof tf === 'undefined') throw new Error("TensorFlow.js nicht geladen");
+
+		if (navigator.gpu) {
+			await tf.setBackend('webgpu');
+		} else {
+			await tf.setBackend('webgl');
+		}
+
 		await tf.ready();
 		disposeOldModel();
 		return await tf.loadGraphModel(getModelUrl(modelUuid));
