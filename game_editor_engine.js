@@ -3,239 +3,239 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 (function() {
-    "use strict";
+	"use strict";
 
-    // ─── State ──────────────────────────────────────────────────────────
-    var gameRunning = false;
-    var animFrameId = null;
-    var lastEvalTime = 0;
-    var webcamStream = null;
-    var gameModel = null;
-    var gameLabels = [];
-    var currentModelUuid = null;
-    var isLoadingModel = false;
+	// ─── State ──────────────────────────────────────────────────────────
+	var gameRunning = false;
+	var animFrameId = null;
+	var lastEvalTime = 0;
+	var webcamStream = null;
+	var gameModel = null;
+	var gameLabels = [];
+	var currentModelUuid = null;
+	var isLoadingModel = false;
 
-    // Persistent user variables (survive across frames)
-    var persistentVars = {};
+	// Persistent user variables (survive across frames)
+	var persistentVars = {};
 
-    var video = document.getElementById('game_video');
-    var overlayCanvas = document.getElementById('game_overlay_canvas');
-    var overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
-    var textOverlay = document.getElementById('game_text_overlay');
-    var editor = document.getElementById('dsl_editor');
-    var outputDiv = document.getElementById('game_output');
-    var statusDiv = document.getElementById('game_status');
-    var camPlaceholder = document.getElementById('cam_placeholder');
+	var video = document.getElementById('game_video');
+	var overlayCanvas = document.getElementById('game_overlay_canvas');
+	var overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
+	var textOverlay = document.getElementById('game_text_overlay');
+	var editor = document.getElementById('dsl_editor');
+	var outputDiv = document.getElementById('game_output');
+	var statusDiv = document.getElementById('game_status');
+	var camPlaceholder = document.getElementById('cam_placeholder');
 
-    // ─── Output helpers ─────────────────────────────────────────────────
-    var outputBuffer = [];
-    var maxOutputLines = 200;
+	// ─── Output helpers ─────────────────────────────────────────────────
+	var outputBuffer = [];
+	var maxOutputLines = 200;
 
-    function appendOutput(text) {
-        var timestamp = new Date().toLocaleTimeString();
-        outputBuffer.push('[' + timestamp + '] ' + text);
-        if (outputBuffer.length > maxOutputLines) {
-            outputBuffer = outputBuffer.slice(-maxOutputLines);
-        }
-        outputDiv.textContent = outputBuffer.join('\n');
-        outputDiv.scrollTop = outputDiv.scrollHeight;
-    }
+	function appendOutput(text) {
+		var timestamp = new Date().toLocaleTimeString();
+		outputBuffer.push('[' + timestamp + '] ' + text);
+		if (outputBuffer.length > maxOutputLines) {
+			outputBuffer = outputBuffer.slice(-maxOutputLines);
+		}
+		outputDiv.textContent = outputBuffer.join('\n');
+		outputDiv.scrollTop = outputDiv.scrollHeight;
+	}
 
-    function clearOutput() {
-        outputBuffer = [];
-        outputDiv.textContent = '';
-    }
+	function clearOutput() {
+		outputBuffer = [];
+		outputDiv.textContent = '';
+	}
 
-    function setStatus(text) {
-        statusDiv.textContent = 'Status: ' + text;
-    }
+	function setStatus(text) {
+		statusDiv.textContent = 'Status: ' + text;
+	}
 
-    // ─── Text overlay on video ──────────────────────────────────────────
-    function showTextOnVideo(message, style) {
-        if (!textOverlay) return;
-        textOverlay.textContent = message;
-        textOverlay.className = 'text-overlay-visible';
-        if (style && style !== 'normal') {
-            textOverlay.classList.add('style-' + style);
-        }
-    }
+	// ─── Text overlay on video ──────────────────────────────────────────
+	function showTextOnVideo(message, style) {
+		if (!textOverlay) return;
+		textOverlay.textContent = message;
+		textOverlay.className = 'text-overlay-visible';
+		if (style && style !== 'normal') {
+			textOverlay.classList.add('style-' + style);
+		}
+	}
 
-    function clearTextOverlay() {
-        if (textOverlay) {
-            textOverlay.textContent = '';
-            textOverlay.className = '';
-        }
-    }
+	function clearTextOverlay() {
+		if (textOverlay) {
+			textOverlay.textContent = '';
+			textOverlay.className = '';
+		}
+	}
 
-    // ─── Camera ─────────────────────────────────────────────────────────
-    async function enumerateGameCameras() {
-        var select = document.getElementById('game_camera_select');
-        try {
-            var tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            if (tempStream) tempStream.getTracks().forEach(function(t) { t.stop(); });
-        } catch (e) {
-            select.innerHTML = '<option value="">Kein Kamerazugriff</option>';
-            return;
-        }
-        try {
-            var devices = await navigator.mediaDevices.enumerateDevices();
-            var videoDevices = devices.filter(function(d) { return d.kind === 'videoinput'; });
-            select.innerHTML = '';
-            videoDevices.forEach(function(device, idx) {
-                var option = document.createElement('option');
-                option.value = device.deviceId;
-                option.textContent = device.label || ('Kamera ' + (idx + 1));
-                select.appendChild(option);
-            });
-        } catch (e) {
-            select.innerHTML = '<option value="">Kamera-Fehler</option>';
-        }
-    }
-    enumerateGameCameras();
+	// ─── Camera ─────────────────────────────────────────────────────────
+	async function enumerateGameCameras() {
+		var select = document.getElementById('game_camera_select');
+		try {
+			var tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+			if (tempStream) tempStream.getTracks().forEach(function(t) { t.stop(); });
+		} catch (e) {
+			select.innerHTML = '<option value="">Kein Kamerazugriff</option>';
+			return;
+		}
+		try {
+			var devices = await navigator.mediaDevices.enumerateDevices();
+			var videoDevices = devices.filter(function(d) { return d.kind === 'videoinput'; });
+			select.innerHTML = '';
+			videoDevices.forEach(function(device, idx) {
+				var option = document.createElement('option');
+				option.value = device.deviceId;
+				option.textContent = device.label || ('Kamera ' + (idx + 1));
+				select.appendChild(option);
+			});
+		} catch (e) {
+			select.innerHTML = '<option value="">Kamera-Fehler</option>';
+		}
+	}
+	enumerateGameCameras();
 
-    async function startGameWebcam() {
-        if (webcamStream) return true;
-        var deviceId = document.getElementById('game_camera_select').value;
-        var constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
-        try {
-            webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = webcamStream;
-            await new Promise(function(resolve) {
-                video.onloadedmetadata = resolve;
-                setTimeout(resolve, 3000);
-            });
-            await new Promise(function(resolve) {
-                if (video.readyState >= 2) return resolve();
-                video.oncanplay = resolve;
-                setTimeout(resolve, 2000);
-            });
-            syncOverlaySize();
-            if (camPlaceholder) camPlaceholder.style.display = 'none';
-            video.style.display = 'block';
-            return true;
-        } catch (e) {
-            webcamStream = null;
-            video.srcObject = null;
-            appendOutput("FEHLER: Kamera - " + (e.message || "Unbekannt"));
-            return false;
-        }
-    }
+	async function startGameWebcam() {
+		if (webcamStream) return true;
+		var deviceId = document.getElementById('game_camera_select').value;
+		var constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
+		try {
+			webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+			video.srcObject = webcamStream;
+			await new Promise(function(resolve) {
+				video.onloadedmetadata = resolve;
+				setTimeout(resolve, 3000);
+			});
+			await new Promise(function(resolve) {
+				if (video.readyState >= 2) return resolve();
+				video.oncanplay = resolve;
+				setTimeout(resolve, 2000);
+			});
+			syncOverlaySize();
+			if (camPlaceholder) camPlaceholder.style.display = 'none';
+			video.style.display = 'block';
+			return true;
+		} catch (e) {
+			webcamStream = null;
+			video.srcObject = null;
+			appendOutput("FEHLER: Kamera - " + (e.message || "Unbekannt"));
+			return false;
+		}
+	}
 
-    function syncOverlaySize() {
-        if (!overlayCanvas || !video) return;
-        var vw = video.videoWidth, vh = video.videoHeight;
-        if (vw > 0 && vh > 0) {
-            overlayCanvas.width = vw;
-            overlayCanvas.height = vh;
-        }
-        overlayCanvas.style.width = video.clientWidth + 'px';
-        overlayCanvas.style.height = video.clientHeight + 'px';
-    }
+	function syncOverlaySize() {
+		if (!overlayCanvas || !video) return;
+		var vw = video.videoWidth, vh = video.videoHeight;
+		if (vw > 0 && vh > 0) {
+			overlayCanvas.width = vw;
+			overlayCanvas.height = vh;
+		}
+		overlayCanvas.style.width = video.clientWidth + 'px';
+		overlayCanvas.style.height = video.clientHeight + 'px';
+	}
 
-    function stopGameWebcam() {
-        if (webcamStream) {
-            try { webcamStream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {}
-            webcamStream = null;
-        }
-        video.srcObject = null;
-        video.style.display = 'none';
-        if (camPlaceholder) camPlaceholder.style.display = 'flex';
-    }
+	function stopGameWebcam() {
+		if (webcamStream) {
+			try { webcamStream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {}
+			webcamStream = null;
+		}
+		video.srcObject = null;
+		video.style.display = 'none';
+		if (camPlaceholder) camPlaceholder.style.display = 'flex';
+	}
 
-    // ─── Model loading ──────────────────────────────────────────────────
-    async function loadGameModel(modelUuid) {
-        if (gameModel && currentModelUuid === modelUuid) return true;
-        if (isLoadingModel) return false;
-        isLoadingModel = true;
-        setStatus('Modell wird geladen...');
+	// ─── Model loading ──────────────────────────────────────────────────
+	async function loadGameModel(modelUuid) {
+		if (gameModel && currentModelUuid === modelUuid) return true;
+		if (isLoadingModel) return false;
+		isLoadingModel = true;
+		setStatus('Modell wird geladen...');
 
-        try {
-            var resp = await fetch('labels.php?model_uuid=' + encodeURIComponent(modelUuid));
-            if (resp.ok) gameLabels = await resp.json();
-            else gameLabels = [];
-        } catch (e) { gameLabels = []; }
+		try {
+			var resp = await fetch('labels.php?model_uuid=' + encodeURIComponent(modelUuid));
+			if (resp.ok) gameLabels = await resp.json();
+			else gameLabels = [];
+		} catch (e) { gameLabels = []; }
 
-        showModelLabels(gameLabels);
+		showModelLabels(gameLabels);
 
-        try {
-            if (typeof tf === 'undefined') throw new Error("TensorFlow.js nicht geladen");
-            await tf.ready();
-            if (gameModel) try { gameModel.dispose(); } catch (e) {}
-            gameModel = await tf.loadGraphModel(
-                "get_model_file.php?&uuid=" + encodeURIComponent(modelUuid) + "&filename=model.json"
-            );
-            currentModelUuid = modelUuid;
-            isLoadingModel = false;
-            setStatus('Modell geladen ✓');
-            appendOutput("✅ Modell geladen. Kategorien: [" + gameLabels.join(", ") + "]");
-            // Update block editor labels
-            if (typeof window.updateBlockEditorLabels === 'function') {
-                window.updateBlockEditorLabels(gameLabels);
-            }
-            return true;
-        } catch (e) {
-            gameModel = null;
-            currentModelUuid = null;
-            isLoadingModel = false;
-            appendOutput("FEHLER: Modell - " + (e.message || "Unbekannt"));
-            setStatus('Modell-Fehler');
-            return false;
-        }
-    }
+		try {
+			if (typeof tf === 'undefined') throw new Error("TensorFlow.js nicht geladen");
+			await tf.ready();
+			if (gameModel) try { gameModel.dispose(); } catch (e) {}
+			gameModel = await tf.loadGraphModel(
+				"get_model_file.php?&uuid=" + encodeURIComponent(modelUuid) + "&filename=model.json"
+			);
+			currentModelUuid = modelUuid;
+			isLoadingModel = false;
+			setStatus('Modell geladen ✓');
+			appendOutput("✅ Modell geladen. Kategorien: [" + gameLabels.join(", ") + "]");
+			// Update block editor labels
+			if (typeof window.updateBlockEditorLabels === 'function') {
+				window.updateBlockEditorLabels(gameLabels);
+			}
+			return true;
+		} catch (e) {
+			gameModel = null;
+			currentModelUuid = null;
+			isLoadingModel = false;
+			appendOutput("FEHLER: Modell - " + (e.message || "Unbekannt"));
+			setStatus('Modell-Fehler');
+			return false;
+		}
+	}
 
-    function showModelLabels(labels) {
-        var container = document.getElementById('model_labels_chips');
-        var wrapper = document.getElementById('model_labels_info');
-        if (!container || !wrapper) return;
-        if (!labels || labels.length === 0) { wrapper.style.display = 'none'; return; }
-        wrapper.style.display = 'inline-flex';
-        container.innerHTML = '';
-        var colors = ['#4fc3f7', '#ffb74d', '#ba68c8', '#66bb6a', '#e57373', '#ff8a65'];
-        labels.forEach(function(label, idx) {
-            var chip = document.createElement('span');
-            chip.className = 'label-chip';
-            chip.style.background = colors[idx % colors.length];
-            chip.textContent = label;
-            container.appendChild(chip);
-        });
-    }
+	function showModelLabels(labels) {
+		var container = document.getElementById('model_labels_chips');
+		var wrapper = document.getElementById('model_labels_info');
+		if (!container || !wrapper) return;
+		if (!labels || labels.length === 0) { wrapper.style.display = 'none'; return; }
+		wrapper.style.display = 'inline-flex';
+		container.innerHTML = '';
+		var colors = ['#4fc3f7', '#ffb74d', '#ba68c8', '#66bb6a', '#e57373', '#ff8a65'];
+		labels.forEach(function(label, idx) {
+			var chip = document.createElement('span');
+			chip.className = 'label-chip';
+			chip.style.background = colors[idx % colors.length];
+			chip.textContent = label;
+			container.appendChild(chip);
+		});
+	}
 
-    // ─── Detection (same as before, abbreviated) ────────────────────────
-    function getModelInputShape() {
-        try {
-            if (gameModel.inputs && gameModel.inputs[0] && gameModel.inputs[0].shape)
-                return gameModel.inputs[0].shape.slice(1, 3);
-        } catch (e) {}
-        return [640, 640];
-    }
+	// ─── Detection (same as before, abbreviated) ────────────────────────
+	function getModelInputShape() {
+		try {
+			if (gameModel.inputs && gameModel.inputs[0] && gameModel.inputs[0].shape)
+				return gameModel.inputs[0].shape.slice(1, 3);
+		} catch (e) {}
+		return [640, 640];
+	}
 
-    function getGameConfThreshold() {
-        return parseFloat(document.getElementById('game_conf_slider').value) || 0.3;
-    }
+	function getGameConfThreshold() {
+		return parseFloat(document.getElementById('game_conf_slider').value) || 0.3;
+	}
 
-    function computeIoU(a, b) {
-        var x1 = Math.max(a.xMin, b.xMin), y1 = Math.max(a.yMin, b.yMin);
-        var x2 = Math.min(a.xMax, b.xMax), y2 = Math.min(a.yMax, b.yMax);
-        var inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-        var areaA = (a.xMax - a.xMin) * (a.yMax - a.yMin);
-        var areaB = (b.xMax - b.xMin) * (b.yMax - b.yMin);
-        var union = areaA + areaB - inter;
-        return union <= 0 ? 0 : inter / union;
-    }
+	function computeIoU(a, b) {
+		var x1 = Math.max(a.xMin, b.xMin), y1 = Math.max(a.yMin, b.yMin);
+		var x2 = Math.min(a.xMax, b.xMax), y2 = Math.min(a.yMax, b.yMax);
+		var inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+		var areaA = (a.xMax - a.xMin) * (a.yMax - a.yMin);
+		var areaB = (b.xMax - b.xMin) * (b.yMax - b.yMin);
+		var union = areaA + areaB - inter;
+		return union <= 0 ? 0 : inter / union;
+	}
 
-    function simpleNMS(detections, iouThresh) {
-        if (!detections || detections.length === 0) return [];
-        detections.sort(function(a, b) { return b.score - a.score; });
-        var kept = [];
-        for (var i = 0; i < detections.length; i++) {
-            var dominated = false;
-            for (var j = 0; j < kept.length; j++) {
-                if (computeIoU(detections[i], kept[j]) > iouThresh) { dominated = true; break; }
-            }
-            if (!dominated) kept.push(detections[i]);
-        }
-        return kept;
-    }
+	function simpleNMS(detections, iouThresh) {
+		if (!detections || detections.length === 0) return [];
+		detections.sort(function(a, b) { return b.score - a.score; });
+		var kept = [];
+		for (var i = 0; i < detections.length; i++) {
+			var dominated = false;
+			for (var j = 0; j < kept.length; j++) {
+				if (computeIoU(detections[i], kept[j]) > iouThresh) { dominated = true; break; }
+			}
+			if (!dominated) kept.push(detections[i]);
+		}
+		return kept;
+	}
 
 	async function runDetection() {
 		if (!gameModel || !webcamStream || video.readyState < 2) return [];
@@ -392,68 +392,68 @@
 		}
 	}
 
-    // ─── Draw detections ────────────────────────────────────────────────
-    function drawGameDetections(detections) {
-        if (!overlayCtx || !overlayCanvas) return;
-        syncOverlaySize();
-        var w = overlayCanvas.width, h = overlayCanvas.height;
-        overlayCtx.clearRect(0, 0, w, h);
-        if (!detections || detections.length === 0) return;
+	// ─── Draw detections ────────────────────────────────────────────────
+	function drawGameDetections(detections) {
+		if (!overlayCtx || !overlayCanvas) return;
+		syncOverlaySize();
+		var w = overlayCanvas.width, h = overlayCanvas.height;
+		overlayCtx.clearRect(0, 0, w, h);
+		if (!detections || detections.length === 0) return;
 
-        var colors = ['#00ff88', '#ff6b9d', '#4fc3f7', '#ffb74d', '#ba68c8', '#e57373'];
-        for (var i = 0; i < detections.length; i++) {
-            var det = detections[i];
-            var x = det.xMin * w, y = det.yMin * h;
-            var bw = (det.xMax - det.xMin) * w;
-            var bh = (det.yMax - det.yMin) * h;
-            var color = colors[i % colors.length];
+		var colors = ['#00ff88', '#ff6b9d', '#4fc3f7', '#ffb74d', '#ba68c8', '#e57373'];
+		for (var i = 0; i < detections.length; i++) {
+			var det = detections[i];
+			var x = det.xMin * w, y = det.yMin * h;
+			var bw = (det.xMax - det.xMin) * w;
+			var bh = (det.yMax - det.yMin) * h;
+			var color = colors[i % colors.length];
 
-            overlayCtx.strokeStyle = color;
-            overlayCtx.lineWidth = 3;
-            overlayCtx.strokeRect(x, y, bw, bh);
+			overlayCtx.strokeStyle = color;
+			overlayCtx.lineWidth = 3;
+			overlayCtx.strokeRect(x, y, bw, bh);
 
-            var text = det.label + ' ' + (det.score * 100).toFixed(0) + '%';
-            overlayCtx.font = 'bold 14px sans-serif';
-            var tw = overlayCtx.measureText(text).width;
-            overlayCtx.fillStyle = color;
-            overlayCtx.fillRect(x, y - 22, tw + 10, 22);
-            overlayCtx.fillStyle = '#000';
-            overlayCtx.fillText(text, x + 5, y - 6);
-        }
-    }
+			var text = det.label + ' ' + (det.score * 100).toFixed(0) + '%';
+			overlayCtx.font = 'bold 14px sans-serif';
+			var tw = overlayCtx.measureText(text).width;
+			overlayCtx.fillStyle = color;
+			overlayCtx.fillRect(x, y - 22, tw + 10, 22);
+			overlayCtx.fillStyle = '#000';
+			overlayCtx.fillText(text, x + 5, y - 6);
+		}
+	}
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // TURING-COMPLETE DSL INTERPRETER
-    // Supports: variables, arithmetic, while loops, if/elif/else, 
-    //           string concat, comparisons, and/or/not, print, show_text
-    // ═══════════════════════════════════════════════════════════════════════
+	// ═══════════════════════════════════════════════════════════════════════
+	// TURING-COMPLETE DSL INTERPRETER
+	// Supports: variables, arithmetic, while loops, if/elif/else, 
+	//           string concat, comparisons, and/or/not, print, show_text
+	// ═══════════════════════════════════════════════════════════════════════
 
-    var MAX_ITERATIONS = 10000; // prevent infinite loops
+	var MAX_ITERATIONS = 10000; // prevent infinite loops
 
-    function tokenizeLine(line) {
-        var commentIdx = -1;
-        var inStr = false, strChar = '';
-        for (var i = 0; i < line.length; i++) {
-            if (!inStr && (line[i] === '"' || line[i] === "'")) { inStr = true; strChar = line[i]; }
-            else if (inStr && line[i] === strChar) { inStr = false; }
-            else if (!inStr && line[i] === '#') { commentIdx = i; break; }
-        }
-        if (commentIdx !== -1) line = line.substring(0, commentIdx);
-        return line.trim();
-    }
+	function tokenizeLine(line) {
+		var commentIdx = -1;
+		var inStr = false, strChar = '';
+		for (var i = 0; i < line.length; i++) {
+			if (!inStr && (line[i] === '"' || line[i] === "'")) { inStr = true; strChar = line[i]; }
+			else if (inStr && line[i] === strChar) { inStr = false; }
+			else if (!inStr && line[i] === '#') { commentIdx = i; break; }
+		}
+		if (commentIdx !== -1) line = line.substring(0, commentIdx);
+		return line.trim();
+	}
 
-    function parseScript(code) {
-        var lines = code.split('\n');
-        var parsed = [];
-        for (var i = 0; i < lines.length; i++) {
-            var trimmed = tokenizeLine(lines[i]);
-            if (trimmed === '') continue;
-            parsed.push({ lineNum: i + 1, text: trimmed });
-        }
-        return parsed;
-    }
+	function parseScript(code) {
+		var lines = code.split('\n');
+		var parsed = [];
+		for (var i = 0; i < lines.length; i++) {
+			var trimmed = tokenizeLine(lines[i]);
+			if (trimmed === '') continue;
+			parsed.push({ lineNum: i + 1, text: trimmed });
+		}
+		return parsed;
+	}
 
-    // ─── Expression evaluator with arithmetic ───────────────────────────
+	// ─── Expression evaluator with arithmetic ───────────────────────────
 	function evaluateExpression(expr, vars) {
 		expr = expr.trim();
 		if (expr === '') return '';
@@ -514,49 +514,49 @@
 	}
 
 
-    function findMatchingParen(str, openIdx) {
-        var depth = 0, inStr = false, strChar = '';
-        for (var i = openIdx; i < str.length; i++) {
-            var ch = str[i];
-            if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-            else if (inStr && ch === strChar) { inStr = false; }
-            else if (!inStr && ch === '(') { depth++; }
-            else if (!inStr && ch === ')') { depth--; if (depth === 0) return i; }
-        }
-        return -1;
-    }
+	function findMatchingParen(str, openIdx) {
+		var depth = 0, inStr = false, strChar = '';
+		for (var i = openIdx; i < str.length; i++) {
+			var ch = str[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && ch === '(') { depth++; }
+			else if (!inStr && ch === ')') { depth--; if (depth === 0) return i; }
+		}
+		return -1;
+	}
 
-    function splitArithmetic(expr, ops) {
-        // Find the LAST occurrence of op (for left-to-right evaluation)
-        // that is not inside a string or parentheses
-        var inStr = false, strChar = '', depth = 0;
-        var lastOpIdx = -1, lastOp = null;
+	function splitArithmetic(expr, ops) {
+		// Find the LAST occurrence of op (for left-to-right evaluation)
+		// that is not inside a string or parentheses
+		var inStr = false, strChar = '', depth = 0;
+		var lastOpIdx = -1, lastOp = null;
 
-        for (var i = 0; i < expr.length; i++) {
-            var ch = expr[i];
-            if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-            else if (inStr && ch === strChar) { inStr = false; }
-            else if (!inStr && ch === '(') { depth++; }
-            else if (!inStr && ch === ')') { depth--; }
-            else if (!inStr && depth === 0) {
-                for (var o = 0; o < ops.length; o++) {
-                    if (ch === ops[o]) {
-                        // For '-', skip if it's a unary minus (at start or after operator)
-                        if (ch === '-' && (i === 0 || /[+\-*/%=(]/.test(expr[i-1]))) continue;
-                        lastOpIdx = i;
-                        lastOp = ops[o];
-                    }
-                }
-            }
-        }
+		for (var i = 0; i < expr.length; i++) {
+			var ch = expr[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && ch === '(') { depth++; }
+			else if (!inStr && ch === ')') { depth--; }
+			else if (!inStr && depth === 0) {
+				for (var o = 0; o < ops.length; o++) {
+					if (ch === ops[o]) {
+						// For '-', skip if it's a unary minus (at start or after operator)
+						if (ch === '-' && (i === 0 || /[+\-*/%=(]/.test(expr[i-1]))) continue;
+							lastOpIdx = i;
+							lastOp = ops[o];
+						}
+				}
+			}
+		}
 
-        if (lastOpIdx <= 0 || lastOpIdx >= expr.length - 1) return null;
-        return {
-            left: expr.substring(0, lastOpIdx).trim(),
-            op: lastOp,
-            right: expr.substring(lastOpIdx + 1).trim()
-        };
-    }
+		if (lastOpIdx <= 0 || lastOpIdx >= expr.length - 1) return null;
+		return {
+			left: expr.substring(0, lastOpIdx).trim(),
+			op: lastOp,
+			right: expr.substring(lastOpIdx + 1).trim()
+		};
+	}
 
 	// ─── Condition evaluator ────────────────────────────────────────────
 	function evaluateCondition(condStr, vars) {
@@ -617,484 +617,484 @@
 		return !!val && val !== "none" && val !== 0 && val !== "0" && val !== "";
 	}
 
-    function findOperatorIndex(str, op) {
-        var inStr = false, strChar = '', depth = 0;
-        for (var i = 0; i <= str.length - op.length; i++) {
-            var ch = str[i];
-            if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-            else if (inStr && ch === strChar) { inStr = false; }
-            else if (!inStr && ch === '(') { depth++; }
-            else if (!inStr && ch === ')') { depth--; }
-            else if (!inStr && depth === 0 && str.substring(i, i + op.length) === op) {
-                if (op === '>' && i + 1 < str.length && str[i + 1] === '=') continue;
-                if (op === '<' && i + 1 < str.length && str[i + 1] === '=') continue;
-                if (op === '=' && i > 0 && (str[i-1] === '!' || str[i-1] === '>' || str[i-1] === '<')) continue;
-                return i;
-            }
-        }
-        return -1;
-    }
+	function findOperatorIndex(str, op) {
+		var inStr = false, strChar = '', depth = 0;
+		for (var i = 0; i <= str.length - op.length; i++) {
+			var ch = str[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && ch === '(') { depth++; }
+			else if (!inStr && ch === ')') { depth--; }
+			else if (!inStr && depth === 0 && str.substring(i, i + op.length) === op) {
+				if (op === '>' && i + 1 < str.length && str[i + 1] === '=') continue;
+				if (op === '<' && i + 1 < str.length && str[i + 1] === '=') continue;
+				if (op === '=' && i > 0 && (str[i-1] === '!' || str[i-1] === '>' || str[i-1] === '<')) continue;
+				return i;
+			}
+		}
+		return -1;
+	}
 
-    function splitLogical(str, separator) {
-        var parts = [], current = '', inStr = false, strChar = '', depth = 0;
-        var sepLen = separator.length;
-        for (var i = 0; i < str.length; i++) {
-            var ch = str[i];
-            if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; current += ch; }
-            else if (inStr && ch === strChar) { inStr = false; current += ch; }
-            else if (!inStr && ch === '(') { depth++; current += ch; }
-            else if (!inStr && ch === ')') { depth--; current += ch; }
-            else if (!inStr && depth === 0 && str.substring(i, i + sepLen) === separator) {
-                parts.push(current); current = ''; i += sepLen - 1;
-            }
-            else { current += ch; }
-        }
-        parts.push(current);
-        return parts;
-    }
+	function splitLogical(str, separator) {
+		var parts = [], current = '', inStr = false, strChar = '', depth = 0;
+		var sepLen = separator.length;
+		for (var i = 0; i < str.length; i++) {
+			var ch = str[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; current += ch; }
+			else if (inStr && ch === strChar) { inStr = false; current += ch; }
+			else if (!inStr && ch === '(') { depth++; current += ch; }
+			else if (!inStr && ch === ')') { depth--; current += ch; }
+			else if (!inStr && depth === 0 && str.substring(i, i + sepLen) === separator) {
+				parts.push(current); current = ''; i += sepLen - 1;
+			}
+			else { current += ch; }
+		}
+		parts.push(current);
+		return parts;
+	}
 
-    // ─── Interpreter with WHILE loops ───────────────────────────────────
-    function interpretScript(parsedLines, vars) {
-        var output = [];
-        var showTextCommands = [];
-        var iterations = 0;
+	// ─── Interpreter with WHILE loops ───────────────────────────────────
+	function interpretScript(parsedLines, vars) {
+		var output = [];
+		var showTextCommands = [];
+		var iterations = 0;
 
-        function execute(startIdx, endIdx) {
-            var idx = startIdx;
-            while (idx < endIdx) {
-                if (++iterations > MAX_ITERATIONS) {
-                    output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-                    return endIdx;
-                }
+		function execute(startIdx, endIdx) {
+			var idx = startIdx;
+			while (idx < endIdx) {
+				if (++iterations > MAX_ITERATIONS) {
+					output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
+					return endIdx;
+				}
 
-                var line = parsedLines[idx].text;
+				var line = parsedLines[idx].text;
 
-                // ─── WHILE loop ─────────────────────────────────
-                if (line.startsWith('while ')) {
-                    idx = executeWhile(idx, endIdx);
-                    continue;
-                }
+				// ─── WHILE loop ─────────────────────────────────
+				if (line.startsWith('while ')) {
+					idx = executeWhile(idx, endIdx);
+					continue;
+				}
 
-                // ─── FOR loop: for i in range(n) ────────────────
-                if (line.startsWith('for ')) {
-                    idx = executeFor(idx, endIdx);
-                    continue;
-                }
+				// ─── FOR loop: for i in range(n) ────────────────
+				if (line.startsWith('for ')) {
+					idx = executeFor(idx, endIdx);
+					continue;
+				}
 
-                // ─── IF / ELIF / ELSE / END ─────────────────────
-                if (line.startsWith('if ')) {
-                    idx = executeIfBlock(idx, endIdx);
-                    continue;
-                }
+				// ─── IF / ELIF / ELSE / END ─────────────────────
+				if (line.startsWith('if ')) {
+					idx = executeIfBlock(idx, endIdx);
+					continue;
+				}
 
-                if (line.startsWith('elif ') || line === 'else') { return idx; }
+				if (line.startsWith('elif ') || line === 'else') { return idx; }
 
-                // ─── SHOW_TEXT ───────────────────────────────────
-                if (line.startsWith('show_text ')) {
-                    var showArgs = parseShowTextArgs(line);
-                    if (showArgs) {
-                        var msg = evaluateExpression(showArgs.message, vars);
-                        showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
-                    }
-                    idx++;
-                    continue;
-                }
+				// ─── SHOW_TEXT ───────────────────────────────────
+				if (line.startsWith('show_text ')) {
+					var showArgs = parseShowTextArgs(line);
+					if (showArgs) {
+						var msg = evaluateExpression(showArgs.message, vars);
+						showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
+					}
+					idx++;
+					continue;
+				}
 
-                // ─── PRINT ──────────────────────────────────────
-                var printArg = parsePrintArgument(line);
-                if (printArg !== null) {
-                    var printVal = evaluateExpression(printArg, vars);
-                    output.push(String(printVal));
-                    idx++;
-                    continue;
-                }
+				// ─── PRINT ──────────────────────────────────────
+				var printArg = parsePrintArgument(line);
+				if (printArg !== null) {
+					var printVal = evaluateExpression(printArg, vars);
+					output.push(String(printVal));
+					idx++;
+					continue;
+				}
 
-                // ─── VARIABLE ASSIGNMENT (with arithmetic) ──────
-                var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
-                if (assignMatch) {
-                    vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
-                    idx++;
-                    continue;
-                }
+				// ─── VARIABLE ASSIGNMENT (with arithmetic) ──────
+				var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
+				if (assignMatch) {
+					vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
+					idx++;
+					continue;
+				}
 
-                // ─── COMPOUND ASSIGNMENT: +=, -=, *=, /= ───────
-                var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
-                if (compoundMatch) {
-                    var cVarName = compoundMatch[1];
-                    var cOp = compoundMatch[2];
-                    var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
-                    var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
-                    switch (cOp) {
-                        case '+=':
-                            if (typeof cCurrent === 'string' || typeof cVal === 'string') {
-                                vars[cVarName] = String(cCurrent) + String(cVal);
-                            } else {
-                                vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
-                            }
-                            break;
-                        case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
-                        case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
-                        case '/=':
-                            var divisor = parseFloat(cVal) || 0;
-                            vars[cVarName] = divisor !== 0 ? (parseFloat(cCurrent) || 0) / divisor : 0;
-                            break;
-                        case '%=':
-                            var mod = parseFloat(cVal) || 0;
-                            vars[cVarName] = mod !== 0 ? (parseFloat(cCurrent) || 0) % mod : 0;
-                            break;
-                    }
-                    idx++;
-                    continue;
-                }
+				// ─── COMPOUND ASSIGNMENT: +=, -=, *=, /= ───────
+				var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
+				if (compoundMatch) {
+					var cVarName = compoundMatch[1];
+					var cOp = compoundMatch[2];
+					var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
+					var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
+					switch (cOp) {
+						case '+=':
+							if (typeof cCurrent === 'string' || typeof cVal === 'string') {
+								vars[cVarName] = String(cCurrent) + String(cVal);
+							} else {
+								vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
+							}
+							break;
+						case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
+						case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
+						case '/=':
+							var divisor = parseFloat(cVal) || 0;
+							vars[cVarName] = divisor !== 0 ? (parseFloat(cCurrent) || 0) / divisor : 0;
+							break;
+						case '%=':
+							var mod = parseFloat(cVal) || 0;
+							vars[cVarName] = mod !== 0 ? (parseFloat(cCurrent) || 0) % mod : 0;
+							break;
+					}
+					idx++;
+					continue;
+				}
 
-                // Unknown line — skip
-                idx++;
-            }
-            return idx;
-        }
+				// Unknown line — skip
+				idx++;
+			}
+			return idx;
+		}
 
-        // ─── WHILE execution ────────────────────────────────────
-        function executeWhile(startIdx, endIdx) {
-            var line = parsedLines[startIdx].text;
-            var condStr = line.substring(6).trim(); // after 'while '
+		// ─── WHILE execution ────────────────────────────────────
+		function executeWhile(startIdx, endIdx) {
+			var line = parsedLines[startIdx].text;
+			var condStr = line.substring(6).trim(); // after 'while '
 
-            // Find the matching 'end'
-            var bodyStart = startIdx + 1;
-            var bodyEnd = findMatchingEnd(bodyStart, endIdx);
+			// Find the matching 'end'
+			var bodyStart = startIdx + 1;
+			var bodyEnd = findMatchingEnd(bodyStart, endIdx);
 
-            while (evaluateCondition(condStr, vars)) {
-                if (++iterations > MAX_ITERATIONS) {
-                    output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-                    break;
-                }
-                execute(bodyStart, bodyEnd);
-            }
+			while (evaluateCondition(condStr, vars)) {
+				if (++iterations > MAX_ITERATIONS) {
+					output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
+					break;
+				}
+				execute(bodyStart, bodyEnd);
+			}
 
-            // Skip past the 'end'
-            return bodyEnd + 1;
-        }
+			// Skip past the 'end'
+			return bodyEnd + 1;
+		}
 
-        // ─── FOR execution: for i in range(n) ──────────────────
-        function executeFor(startIdx, endIdx) {
-            var line = parsedLines[startIdx].text;
-            // Parse: for <var> in range(<start>, <stop>) or range(<stop>)
-            var forMatch = line.match(/^for\s+([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s+in\s+range\((.+)\)$/);
-            if (!forMatch) {
-                output.push("⚠️ Syntax-Fehler: " + line);
-                return startIdx + 1;
-            }
+		// ─── FOR execution: for i in range(n) ──────────────────
+		function executeFor(startIdx, endIdx) {
+			var line = parsedLines[startIdx].text;
+			// Parse: for <var> in range(<start>, <stop>) or range(<stop>)
+			var forMatch = line.match(/^for\s+([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s+in\s+range\((.+)\)$/);
+			if (!forMatch) {
+				output.push("⚠️ Syntax-Fehler: " + line);
+				return startIdx + 1;
+			}
 
-            var loopVar = forMatch[1];
-            var rangeArgs = forMatch[2].split(',').map(function(s) { return s.trim(); });
+			var loopVar = forMatch[1];
+			var rangeArgs = forMatch[2].split(',').map(function(s) { return s.trim(); });
 
-            var rangeStart = 0, rangeEnd = 0, rangeStep = 1;
-            if (rangeArgs.length === 1) {
-                rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-            } else if (rangeArgs.length === 2) {
-                rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-                rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
-            } else if (rangeArgs.length >= 3) {
-                rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-                rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
-                rangeStep = Math.floor(parseFloat(evaluateExpression(rangeArgs[2], vars)) || 1);
-                if (rangeStep === 0) rangeStep = 1;
-            }
+			var rangeStart = 0, rangeEnd = 0, rangeStep = 1;
+			if (rangeArgs.length === 1) {
+				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
+			} else if (rangeArgs.length === 2) {
+				rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
+				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
+			} else if (rangeArgs.length >= 3) {
+				rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
+				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
+				rangeStep = Math.floor(parseFloat(evaluateExpression(rangeArgs[2], vars)) || 1);
+				if (rangeStep === 0) rangeStep = 1;
+			}
 
-            var bodyStart = startIdx + 1;
-            var bodyEnd = findMatchingEnd(bodyStart, endIdx);
+			var bodyStart = startIdx + 1;
+			var bodyEnd = findMatchingEnd(bodyStart, endIdx);
 
-            if (rangeStep > 0) {
-                for (var i = rangeStart; i < rangeEnd; i += rangeStep) {
-                    if (++iterations > MAX_ITERATIONS) {
-                        output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-                        break;
-                    }
-                    vars[loopVar] = i;
-                    execute(bodyStart, bodyEnd);
-                }
-            } else {
-                for (var i = rangeStart; i > rangeEnd; i += rangeStep) {
-                    if (++iterations > MAX_ITERATIONS) {
-                        output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-                        break;
-                    }
-                    vars[loopVar] = i;
-                    execute(bodyStart, bodyEnd);
-                }
-            }
+			if (rangeStep > 0) {
+				for (var i = rangeStart; i < rangeEnd; i += rangeStep) {
+					if (++iterations > MAX_ITERATIONS) {
+						output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
+						break;
+					}
+					vars[loopVar] = i;
+					execute(bodyStart, bodyEnd);
+				}
+			} else {
+				for (var i = rangeStart; i > rangeEnd; i += rangeStep) {
+					if (++iterations > MAX_ITERATIONS) {
+						output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
+						break;
+					}
+					vars[loopVar] = i;
+					execute(bodyStart, bodyEnd);
+				}
+			}
 
-            return bodyEnd + 1;
-        }
+			return bodyEnd + 1;
+		}
 
-        // ─── IF/ELIF/ELSE execution ────────────────────────────
-        function executeIfBlock(startIdx, endIdx) {
-            var idx = startIdx;
-            var conditionMet = false;
+		// ─── IF/ELIF/ELSE execution ────────────────────────────
+		function executeIfBlock(startIdx, endIdx) {
+			var idx = startIdx;
+			var conditionMet = false;
 
-            var ifLine = parsedLines[idx].text;
-            var ifCond = ifLine.substring(3).trim();
-            idx++;
+			var ifLine = parsedLines[idx].text;
+			var ifCond = ifLine.substring(3).trim();
+			idx++;
 
-            if (evaluateCondition(ifCond, vars)) {
-                conditionMet = true;
-                idx = executeBodyUntilElifElseEnd(idx, endIdx);
-            } else {
-                idx = skipBodyUntilElifElseEnd(idx, endIdx);
-            }
+			if (evaluateCondition(ifCond, vars)) {
+				conditionMet = true;
+				idx = executeBodyUntilElifElseEnd(idx, endIdx);
+			} else {
+				idx = skipBodyUntilElifElseEnd(idx, endIdx);
+			}
 
-            while (idx < endIdx) {
-                var currentLine = parsedLines[idx].text;
+			while (idx < endIdx) {
+				var currentLine = parsedLines[idx].text;
 
-                if (currentLine.startsWith('elif ')) {
-                    if (!conditionMet) {
-                        var elifCond = currentLine.substring(5).trim();
-                        idx++;
-                        if (evaluateCondition(elifCond, vars)) {
-                            conditionMet = true;
-                            idx = executeBodyUntilElifElseEnd(idx, endIdx);
-                        } else {
-                            idx = skipBodyUntilElifElseEnd(idx, endIdx);
-                        }
-                    } else {
-                        idx++;
-                        idx = skipBodyUntilElifElseEnd(idx, endIdx);
-                    }
-                } else if (currentLine === 'else') {
-                    idx++;
-                    if (!conditionMet) {
-                        conditionMet = true;
-                        idx = executeBodyUntilElifElseEnd(idx, endIdx);
-                    } else {
-                        idx = skipBodyUntilElifElseEnd(idx, endIdx);
-                    }
-                } else {
-                    break;
-                }
-            }
-            return idx;
-        }
+				if (currentLine.startsWith('elif ')) {
+					if (!conditionMet) {
+						var elifCond = currentLine.substring(5).trim();
+						idx++;
+						if (evaluateCondition(elifCond, vars)) {
+							conditionMet = true;
+							idx = executeBodyUntilElifElseEnd(idx, endIdx);
+						} else {
+							idx = skipBodyUntilElifElseEnd(idx, endIdx);
+						}
+					} else {
+						idx++;
+						idx = skipBodyUntilElifElseEnd(idx, endIdx);
+					}
+				} else if (currentLine === 'else') {
+					idx++;
+					if (!conditionMet) {
+						conditionMet = true;
+						idx = executeBodyUntilElifElseEnd(idx, endIdx);
+					} else {
+						idx = skipBodyUntilElifElseEnd(idx, endIdx);
+					}
+				} else {
+					break;
+				}
+			}
+			return idx;
+		}
 
-        function executeBodyUntilElifElseEnd(startIdx, endIdx) {
-            var idx = startIdx;
-            while (idx < endIdx) {
-                var line = parsedLines[idx].text;
+		function executeBodyUntilElifElseEnd(startIdx, endIdx) {
+			var idx = startIdx;
+			while (idx < endIdx) {
+				var line = parsedLines[idx].text;
 
-                if (line.startsWith('if ')) { idx = executeIfBlock(idx, endIdx); continue; }
-                if (line.startsWith('while ')) { idx = executeWhile(idx, endIdx); continue; }
-                if (line.startsWith('for ')) { idx = executeFor(idx, endIdx); continue; }
+				if (line.startsWith('if ')) { idx = executeIfBlock(idx, endIdx); continue; }
+				if (line.startsWith('while ')) { idx = executeWhile(idx, endIdx); continue; }
+				if (line.startsWith('for ')) { idx = executeFor(idx, endIdx); continue; }
 
-                if (line.startsWith('elif ') || line === 'else') return idx;
+				if (line.startsWith('elif ') || line === 'else') return idx;
 
-                // Execute single statement (reuse logic from execute())
-                if (line.startsWith('show_text ')) {
-                    var showArgs = parseShowTextArgs(line);
-                    if (showArgs) {
-                        var msg = evaluateExpression(showArgs.message, vars);
-                        showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
-                    }
-                    idx++; continue;
-                }
+				// Execute single statement (reuse logic from execute())
+				if (line.startsWith('show_text ')) {
+					var showArgs = parseShowTextArgs(line);
+					if (showArgs) {
+						var msg = evaluateExpression(showArgs.message, vars);
+						showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
+					}
+					idx++; continue;
+				}
 
-                var printArg = parsePrintArgument(line);
-                if (printArg !== null) {
-                    var printVal = evaluateExpression(printArg, vars);
-                    output.push(String(printVal));
-                    idx++; continue;
-                }
+				var printArg = parsePrintArgument(line);
+				if (printArg !== null) {
+					var printVal = evaluateExpression(printArg, vars);
+					output.push(String(printVal));
+					idx++; continue;
+				}
 
-                var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
-                if (assignMatch) {
-                    vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
-                    idx++; continue;
-                }
+				var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
+				if (assignMatch) {
+					vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
+					idx++; continue;
+				}
 
-                var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
-                if (compoundMatch) {
-                    var cVarName = compoundMatch[1];
-                    var cOp = compoundMatch[2];
-                    var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
-                    var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
-                    switch (cOp) {
-                        case '+=':
-                            if (typeof cCurrent === 'string' || typeof cVal === 'string') {
-                                vars[cVarName] = String(cCurrent) + String(cVal);
-                            } else {
-                                vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
-                            }
-                            break;
-                        case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
-                        case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
-                        case '/=':
-                            var d = parseFloat(cVal) || 0;
-                            vars[cVarName] = d !== 0 ? (parseFloat(cCurrent) || 0) / d : 0;
-                            break;
-                        case '%=':
-                            var m = parseFloat(cVal) || 0;
-                            vars[cVarName] = m !== 0 ? (parseFloat(cCurrent) || 0) % m : 0;
-                            break;
-                    }
-                    idx++; continue;
-                }
+				var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
+				if (compoundMatch) {
+					var cVarName = compoundMatch[1];
+					var cOp = compoundMatch[2];
+					var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
+					var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
+					switch (cOp) {
+						case '+=':
+							if (typeof cCurrent === 'string' || typeof cVal === 'string') {
+								vars[cVarName] = String(cCurrent) + String(cVal);
+							} else {
+								vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
+							}
+							break;
+						case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
+						case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
+						case '/=':
+							var d = parseFloat(cVal) || 0;
+							vars[cVarName] = d !== 0 ? (parseFloat(cCurrent) || 0) / d : 0;
+							break;
+						case '%=':
+							var m = parseFloat(cVal) || 0;
+							vars[cVarName] = m !== 0 ? (parseFloat(cCurrent) || 0) % m : 0;
+							break;
+					}
+					idx++; continue;
+				}
 
-                idx++;
-            }
-            return idx;
-        }
+				idx++;
+			}
+			return idx;
+		}
 
-        function skipBodyUntilElifElseEnd(startIdx, endIdx) {
-            var idx = startIdx;
-            var depth = 0;
-            while (idx < endIdx) {
-                var line = parsedLines[idx].text;
-                if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) { depth++; idx++; continue; }
-                if ((line.startsWith('elif ') || line === 'else') && depth === 0) {
-                    return idx;
-                }
-                idx++;
-            }
-            return idx;
-        }
+		function skipBodyUntilElifElseEnd(startIdx, endIdx) {
+			var idx = startIdx;
+			var depth = 0;
+			while (idx < endIdx) {
+				var line = parsedLines[idx].text;
+				if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) { depth++; idx++; continue; }
+				if ((line.startsWith('elif ') || line === 'else') && depth === 0) {
+					return idx;
+				}
+				idx++;
+			}
+			return idx;
+		}
 
-        // ─── Find matching 'end' for while/for ─────────────────
-        function findMatchingEnd(startIdx, endIdx) {
-            var depth = 0;
-            for (var i = startIdx; i < endIdx; i++) {
-                var line = parsedLines[i].text;
-                if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) {
-                    depth++;
-                }
-            }
-            return endIdx; // no matching end found
-        }
+		// ─── Find matching 'end' for while/for ─────────────────
+		function findMatchingEnd(startIdx, endIdx) {
+			var depth = 0;
+			for (var i = startIdx; i < endIdx; i++) {
+				var line = parsedLines[i].text;
+				if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) {
+					depth++;
+				}
+			}
+			return endIdx; // no matching end found
+		}
 
-        execute(0, parsedLines.length);
-        return { output: output, showTextCommands: showTextCommands };
-    }
+		execute(0, parsedLines.length);
+		return { output: output, showTextCommands: showTextCommands };
+	}
 
-    // ─── Parse show_text arguments ──────────────────────────────────────
-    function parseShowTextArgs(line) {
-        var afterCmd = line.substring('show_text '.length).trim();
-        if (!afterCmd) return null;
+	// ─── Parse show_text arguments ──────────────────────────────────────
+	function parseShowTextArgs(line) {
+		var afterCmd = line.substring('show_text '.length).trim();
+		if (!afterCmd) return null;
 
-        var message = '';
-        var style = 'normal';
-        var styles = ['normal', 'winner', 'loser', 'draw'];
+		var message = '';
+		var style = 'normal';
+		var styles = ['normal', 'winner', 'loser', 'draw'];
 
-        var lastSpace = -1;
-        var inStr = false, strChar = '';
-        for (var i = 0; i < afterCmd.length; i++) {
-            var ch = afterCmd[i];
-            if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-            else if (inStr && ch === strChar) { inStr = false; }
-            else if (!inStr && ch === ' ') { lastSpace = i; }
-        }
+		var lastSpace = -1;
+		var inStr = false, strChar = '';
+		for (var i = 0; i < afterCmd.length; i++) {
+			var ch = afterCmd[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && ch === ' ') { lastSpace = i; }
+		}
 
-        if (!inStr && lastSpace !== -1) {
-            var candidate = afterCmd.substring(lastSpace + 1);
-            if (styles.indexOf(candidate) !== -1) {
-                style = candidate;
-                message = afterCmd.substring(0, lastSpace).trim();
-            } else {
-                message = afterCmd;
-            }
-        } else {
-            message = afterCmd;
-        }
+		if (!inStr && lastSpace !== -1) {
+			var candidate = afterCmd.substring(lastSpace + 1);
+			if (styles.indexOf(candidate) !== -1) {
+				style = candidate;
+				message = afterCmd.substring(0, lastSpace).trim();
+			} else {
+				message = afterCmd;
+			}
+		} else {
+			message = afterCmd;
+		}
 
-        return { message: message, style: style };
-    }
+		return { message: message, style: style };
+	}
 
-    function parsePrintArgument(line) {
-        if (!line.startsWith('print') && !line.startsWith('show_text')) return null;
-        var keyword = line.startsWith('show_text') ? 'show_text' : 'print';
-        var afterKeyword = line.substring(keyword.length);
-        if (afterKeyword.startsWith('(')) {
-            var depth = 0, inStr = false, strChar = '';
-            for (var i = 0; i < afterKeyword.length; i++) {
-                var ch = afterKeyword[i];
-                if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-                else if (inStr && ch === strChar) { inStr = false; }
-                else if (!inStr && ch === '(') { depth++; }
-                else if (!inStr && ch === ')') { depth--; if (depth === 0) return afterKeyword.substring(1, i).trim(); }
-            }
-            return afterKeyword.substring(1).trim();
-        }
-        if (afterKeyword.startsWith(' ') || afterKeyword.startsWith('\t')) {
-            return afterKeyword.trim();
-        }
-        return null;
-    }
+	function parsePrintArgument(line) {
+		if (!line.startsWith('print') && !line.startsWith('show_text')) return null;
+		var keyword = line.startsWith('show_text') ? 'show_text' : 'print';
+		var afterKeyword = line.substring(keyword.length);
+		if (afterKeyword.startsWith('(')) {
+			var depth = 0, inStr = false, strChar = '';
+			for (var i = 0; i < afterKeyword.length; i++) {
+				var ch = afterKeyword[i];
+				if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+				else if (inStr && ch === strChar) { inStr = false; }
+				else if (!inStr && ch === '(') { depth++; }
+				else if (!inStr && ch === ')') { depth--; if (depth === 0) return afterKeyword.substring(1, i).trim(); }
+			}
+			return afterKeyword.substring(1).trim();
+		}
+		if (afterKeyword.startsWith(' ') || afterKeyword.startsWith('\t')) {
+			return afterKeyword.trim();
+		}
+		return null;
+	}
 
-    // ─── Build context from detections ──────────────────────────────────
-    function buildDSLContext(detections) {
-        // Start with persistent vars (survive across frames)
-        var vars = {};
-        for (var key in persistentVars) {
-            if (persistentVars.hasOwnProperty(key)) {
-                vars[key] = persistentVars[key];
-            }
-        }
+	// ─── Build context from detections ──────────────────────────────────
+	function buildDSLContext(detections) {
+		// Start with persistent vars (survive across frames)
+		var vars = {};
+		for (var key in persistentVars) {
+			if (persistentVars.hasOwnProperty(key)) {
+				vars[key] = persistentVars[key];
+			}
+		}
 
-        // Detection builtins
-        vars['detection_count'] = 0;
-        vars['leftmost_detection'] = 'none';
-        vars['rightmost_detection'] = 'none';
-        vars['topmost_detection'] = 'none';
-        vars['bottommost_detection'] = 'none';
-        vars['largest_detection'] = 'none';
-        vars['smallest_detection'] = 'none';
-        vars['highest_conf_detection'] = 'none';
-        vars['leftmost_detection.probability'] = 0;
-        vars['rightmost_detection.probability'] = 0;
-        vars['topmost_detection.probability'] = 0;
-        vars['bottommost_detection.probability'] = 0;
-        vars['largest_detection.probability'] = 0;
-        vars['smallest_detection.probability'] = 0;
-        vars['highest_conf_detection.probability'] = 0;
+		// Detection builtins
+		vars['detection_count'] = 0;
+		vars['leftmost_detection'] = 'none';
+		vars['rightmost_detection'] = 'none';
+		vars['topmost_detection'] = 'none';
+		vars['bottommost_detection'] = 'none';
+		vars['largest_detection'] = 'none';
+		vars['smallest_detection'] = 'none';
+		vars['highest_conf_detection'] = 'none';
+		vars['leftmost_detection.probability'] = 0;
+		vars['rightmost_detection.probability'] = 0;
+		vars['topmost_detection.probability'] = 0;
+		vars['bottommost_detection.probability'] = 0;
+		vars['largest_detection.probability'] = 0;
+		vars['smallest_detection.probability'] = 0;
+		vars['highest_conf_detection.probability'] = 0;
 
-        if (!detections || detections.length === 0) return vars;
+		if (!detections || detections.length === 0) return vars;
 
-        vars['detection_count'] = detections.length;
+		vars['detection_count'] = detections.length;
 
-        var leftmost = detections[0], rightmost = detections[0];
-        var topmost = detections[0], bottommost = detections[0];
-        var largest = detections[0], smallest = detections[0];
-        var highestConf = detections[0];
+		var leftmost = detections[0], rightmost = detections[0];
+		var topmost = detections[0], bottommost = detections[0];
+		var largest = detections[0], smallest = detections[0];
+		var highestConf = detections[0];
 
-        for (var i = 1; i < detections.length; i++) {
-            var d = detections[i];
-            if (d.xMin < leftmost.xMin) leftmost = d;
-            if (d.xMax > rightmost.xMax) rightmost = d;
-            if (d.yMin < topmost.yMin) topmost = d;
-            if (d.yMax > bottommost.yMax) bottommost = d;
-            var area = (d.xMax - d.xMin) * (d.yMax - d.yMin);
-            var largestArea = (largest.xMax - largest.xMin) * (largest.yMax - largest.yMin);
-            var smallestArea = (smallest.xMax - smallest.xMin) * (smallest.yMax - smallest.yMin);
-            if (area > largestArea) largest = d;
-            if (area < smallestArea) smallest = d;
-            if (d.score > highestConf.score) highestConf = d;
-        }
+		for (var i = 1; i < detections.length; i++) {
+			var d = detections[i];
+			if (d.xMin < leftmost.xMin) leftmost = d;
+			if (d.xMax > rightmost.xMax) rightmost = d;
+			if (d.yMin < topmost.yMin) topmost = d;
+			if (d.yMax > bottommost.yMax) bottommost = d;
+			var area = (d.xMax - d.xMin) * (d.yMax - d.yMin);
+			var largestArea = (largest.xMax - largest.xMin) * (largest.yMax - largest.yMin);
+			var smallestArea = (smallest.xMax - smallest.xMin) * (smallest.yMax - smallest.yMin);
+			if (area > largestArea) largest = d;
+			if (area < smallestArea) smallest = d;
+			if (d.score > highestConf.score) highestConf = d;
+		}
 
-        vars['leftmost_detection'] = leftmost.label;
-        vars['leftmost_detection.probability'] = leftmost.score;
-        vars['rightmost_detection'] = rightmost.label;
-        vars['rightmost_detection.probability'] = rightmost.score;
-        vars['topmost_detection'] = topmost.label;
-        vars['topmost_detection.probability'] = topmost.score;
-        vars['bottommost_detection'] = bottommost.label;
-        vars['bottommost_detection.probability'] = bottommost.score;
-        vars['largest_detection'] = largest.label;
-        vars['largest_detection.probability'] = largest.score;
-        vars['smallest_detection'] = smallest.label;
-        vars['smallest_detection.probability'] = smallest.score;
-        vars['highest_conf_detection'] = highestConf.label;
-        vars['highest_conf_detection.probability'] = highestConf.score;
+		vars['leftmost_detection'] = leftmost.label;
+		vars['leftmost_detection.probability'] = leftmost.score;
+		vars['rightmost_detection'] = rightmost.label;
+		vars['rightmost_detection.probability'] = rightmost.score;
+		vars['topmost_detection'] = topmost.label;
+		vars['topmost_detection.probability'] = topmost.score;
+		vars['bottommost_detection'] = bottommost.label;
+		vars['bottommost_detection.probability'] = bottommost.score;
+		vars['largest_detection'] = largest.label;
+		vars['largest_detection.probability'] = largest.score;
+		vars['smallest_detection'] = smallest.label;
+		vars['smallest_detection.probability'] = smallest.score;
+		vars['highest_conf_detection'] = highestConf.label;
+		vars['highest_conf_detection.probability'] = highestConf.score;
 
-        return vars;
-    }
+		return vars;
+	}
 
-    // ─── Game loop (requestAnimationFrame based) ────────────────────────
-    var evalInterval = 333; // ~3 fps default
+	// ─── Game loop (requestAnimationFrame based) ────────────────────────
+	var evalInterval = 333; // ~3 fps default
 
 	// ─── Game loop (smooth fixed interval) ────────────────────────────────
 	var gameInterval = null;
@@ -1167,7 +1167,7 @@
 	}
 
 
-    // ─── Auto-start: triggered by model selection ───────────────────────
+	// ─── Auto-start: triggered by model selection ───────────────────────
 	async function autoStart(modelUuid) {
 		// ═══ CRITICAL: Always clear existing interval first ═══
 		if (gameInterval) {
@@ -1208,56 +1208,56 @@
 		appendOutput("🎮 Spiel läuft!");
 	}
 
-    // ─── Model select change ────────────────────────────────────────────
-    var modelSelect = document.getElementById('game_model_select');
-    if (modelSelect) {
-        modelSelect.addEventListener('change', function() {
-            autoStart(this.value);
-        });
-    }
+	// ─── Model select change ────────────────────────────────────────────
+	var modelSelect = document.getElementById('game_model_select');
+	if (modelSelect) {
+		modelSelect.addEventListener('change', function() {
+			autoStart(this.value);
+		});
+	}
 
-    // ─── Camera change ──────────────────────────────────────────────────
-    var cameraSelect = document.getElementById('game_camera_select');
-    if (cameraSelect) {
-	    cameraSelect.addEventListener('change', function() {
-		    var modelUuid = document.getElementById('game_model_select').value;
-		    if (modelUuid === 'none') return;
+	// ─── Camera change ──────────────────────────────────────────────────
+	var cameraSelect = document.getElementById('game_camera_select');
+	if (cameraSelect) {
+		cameraSelect.addEventListener('change', function() {
+			var modelUuid = document.getElementById('game_model_select').value;
+			if (modelUuid === 'none') return;
 
-		    // ═══ Stop everything cleanly ═══
-		    gameRunning = false;
+			// ═══ Stop everything cleanly ═══
+			gameRunning = false;
 
-		    // Clear the game interval (this was the bug — it wasn't cleared here)
-		    if (gameInterval) {
-			    clearInterval(gameInterval);
-			    gameInterval = null;
-		    }
+			// Clear the game interval (this was the bug — it wasn't cleared here)
+			if (gameInterval) {
+				clearInterval(gameInterval);
+				gameInterval = null;
+			}
 
-		    // Clear legacy animFrameId if it somehow exists
-		    if (animFrameId) {
-			    cancelAnimationFrame(animFrameId);
-			    animFrameId = null;
-		    }
+			// Clear legacy animFrameId if it somehow exists
+			if (animFrameId) {
+				cancelAnimationFrame(animFrameId);
+				animFrameId = null;
+			}
 
-		    // Stop webcam so it can restart with new device
-		    stopGameWebcam();
+			// Stop webcam so it can restart with new device
+			stopGameWebcam();
 
-		    // Restart with new camera
-		    autoStart(modelUuid);
-	    });
+			// Restart with new camera
+			autoStart(modelUuid);
+		});
 
-    }
+	}
 
-    // ─── Confidence slider ──────────────────────────────────────────────
-    var gameConfSlider = document.getElementById('game_conf_slider');
-    if (gameConfSlider) {
-        gameConfSlider.addEventListener('input', function() {
-            var display = document.getElementById('game_conf_value');
-            if (display) display.textContent = parseFloat(this.value).toFixed(2);
-        });
-    }
+	// ─── Confidence slider ──────────────────────────────────────────────
+	var gameConfSlider = document.getElementById('game_conf_slider');
+	if (gameConfSlider) {
+		gameConfSlider.addEventListener('input', function() {
+			var display = document.getElementById('game_conf_value');
+			if (display) display.textContent = parseFloat(this.value).toFixed(2);
+		});
+	}
 
-    // ─── FPS hot-swap ───────────────────────────────────────────────────
-    var gameFpsInput = document.getElementById('game_fps');
+	// ─── FPS hot-swap ───────────────────────────────────────────────────
+	var gameFpsInput = document.getElementById('game_fps');
 	if (gameFpsInput) {
 		gameFpsInput.addEventListener('input', function() {
 			if (!gameRunning || !gameInterval) return;
@@ -1268,20 +1268,20 @@
 		});
 	}
 
-    // ─── Button bindings ────────────────────────────────────────────────
-    var btnClearOutput = document.getElementById('btn_clear_output');
-    if (btnClearOutput) btnClearOutput.addEventListener('click', clearOutput);
+	// ─── Button bindings ────────────────────────────────────────────────
+	var btnClearOutput = document.getElementById('btn_clear_output');
+	if (btnClearOutput) btnClearOutput.addEventListener('click', clearOutput);
 
-    var btnShowCode = document.getElementById('btn_show_code');
-    if (btnShowCode) {
-        btnShowCode.addEventListener('click', function() {
-            var code = editor.value || '(kein Programm)';
-            var previewContent = document.getElementById('code_preview_content');
-            var modal = document.getElementById('code_preview_modal');
-            if (previewContent) previewContent.textContent = code;
-            if (modal) modal.classList.add('visible');
-        });
-    }
+	var btnShowCode = document.getElementById('btn_show_code');
+	if (btnShowCode) {
+		btnShowCode.addEventListener('click', function() {
+			var code = editor.value || '(kein Programm)';
+			var previewContent = document.getElementById('code_preview_content');
+			var modal = document.getElementById('code_preview_modal');
+			if (previewContent) previewContent.textContent = code;
+			if (modal) modal.classList.add('visible');
+		});
+	}
 
 	// ═══════════════════════════════════════════════════════════════
 	// BEISPIEL-GALERIE — Ersetzt den alten rotierenden Button
@@ -1376,94 +1376,93 @@
 
 	// ─── Galerie rendern ────────────────────────────────────────────────
 	function renderExampleGallery() {
-	    var container = document.getElementById('example_cards_container');
-	    if (!container) return;
-	    container.innerHTML = '';
+		var container = document.getElementById('example_cards_container');
+		if (!container) return;
+		container.innerHTML = '';
 
-	    var examples = getExamplePrograms();
+		var examples = getExamplePrograms();
 
-	    for (var i = 0; i < examples.length; i++) {
-		(function(ex, index) {
-		    var card = document.createElement('div');
-		    card.className = 'example-card';
-		    card.style.borderColor = ex.color;
+		for (var i = 0; i < examples.length; i++) {
+			(function(ex, index) {
+				var card = document.createElement('div');
+				card.className = 'example-card';
+				card.style.borderColor = ex.color;
 
-		    card.innerHTML =
-			'<div class="example-card-icon" style="background:' + ex.color + '22; color:' + ex.color + '">' +
-			    '<span class="example-big-icon">' + ex.icon + '</span>' +
-			'</div>' +
-			'<div class="example-card-body">' +
-			    '<h3>' + ex.name + '</h3>' +
-			    '<div class="example-difficulty">' + ex.difficulty + '</div>' +
-			    '<p>' + ex.description + '</p>' +
-			    '<div class="example-preview">' + ex.preview + '</div>' +
-			'</div>';
+				card.innerHTML =
+					'<div class="example-card-icon" style="background:' + ex.color + '22; color:' + ex.color + '">' +
+					'<span class="example-big-icon">' + ex.icon + '</span>' +
+					'</div>' +
+					'<div class="example-card-body">' +
+					'<h3>' + ex.name + '</h3>' +
+					'<div class="example-difficulty">' + ex.difficulty + '</div>' +
+					'<p>' + ex.description + '</p>' +
+					'<div class="example-preview">' + ex.preview + '</div>' +
+					'</div>';
 
-		    card.addEventListener('click', function() {
-			if (typeof window.loadCodeToBlocks === 'function') {
-			    window.loadCodeToBlocks(ex.code);
-			} else {
-			    editor.value = ex.code;
-			}
-			persistentVars = {}; // Reset variables
-			clearOutput();
-			appendOutput("🎮 " + ex.name + " geladen!");
-			appendOutput("   " + ex.description);
-			document.getElementById('example_gallery_modal').classList.remove('visible');
+				card.addEventListener('click', function() {
+					if (typeof window.loadCodeToBlocks === 'function') {
+						window.loadCodeToBlocks(ex.code);
+					} else {
+						editor.value = ex.code;
+					}
+					persistentVars = {}; // Reset variables
+					clearOutput();
+					appendOutput("🎮 " + ex.name + " geladen!");
+					appendOutput("   " + ex.description);
+					document.getElementById('example_gallery_modal').classList.remove('visible');
 
-			// Confetti effect
-			showConfetti();
-		    });
+					// Confetti effect
+					showConfetti();
+				});
 
-		    container.appendChild(card);
-		})(examples[i], i);
-	    }
+				container.appendChild(card);
+			})(examples[i], i);
+		}
 	}
 
 	// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
 	function showConfetti() {
-	    var emojis = ['🎉', '⭐', '🎮', '🚀', '✨', '💫'];
-	    for (var i = 0; i < 12; i++) {
-		(function(delay) {
-		    setTimeout(function() {
-			var particle = document.createElement('div');
-			particle.className = 'confetti-particle';
-			particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-			particle.style.left = (Math.random() * 100) + '%';
-			particle.style.animationDuration = (1 + Math.random() * 2) + 's';
-			document.getElementById('game_editor_page').appendChild(particle);
-			setTimeout(function() { particle.remove(); }, 3000);
-		    }, delay * 80);
-		})(i);
-	    }
+		var emojis = ['🎉', '⭐', '🎮', '🚀', '✨', '💫'];
+		for (var i = 0; i < 12; i++) {
+			(function(delay) {
+				setTimeout(function() {
+					var particle = document.createElement('div');
+					particle.className = 'confetti-particle';
+					particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+					particle.style.left = (Math.random() * 100) + '%';
+					particle.style.animationDuration = (1 + Math.random() * 2) + 's';
+					document.getElementById('game_editor_page').appendChild(particle);
+					setTimeout(function() { particle.remove(); }, 3000);
+				}, delay * 80);
+			})(i);
+		}
 	}
 
 	// ─── Button-Binding für Galerie ─────────────────────────────────────
 	var btnShowExamples = document.getElementById('btn_show_examples');
 	if (btnShowExamples) {
-	    btnShowExamples.addEventListener('click', function() {
-		renderExampleGallery();
-		document.getElementById('example_gallery_modal').classList.add('visible');
-	    });
+		btnShowExamples.addEventListener('click', function() {
+			renderExampleGallery();
+			document.getElementById('example_gallery_modal').classList.add('visible');
+		});
 	}
 
 	// KEEP the old btn_load_example as fallback, but also make it open gallery:
 	var btnLoadExample = document.getElementById('btn_load_example');
 	if (btnLoadExample) {
-	    btnLoadExample.addEventListener('click', function() {
-		renderExampleGallery();
-		document.getElementById('example_gallery_modal').classList.add('visible');
-	    });
+		btnLoadExample.addEventListener('click', function() {
+			renderExampleGallery();
+			document.getElementById('example_gallery_modal').classList.add('visible');
+		});
 	}
 
 
 
-    // ─── Cleanup on unload ──────────────────────────────────────────────
-    window.addEventListener('beforeunload', function() {
-        gameRunning = false;
-        if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
-        stopGameWebcam();
-        if (gameModel) try { gameModel.dispose(); } catch (e) {}
-    });
-
+	// ─── Cleanup on unload ──────────────────────────────────────────────
+	window.addEventListener('beforeunload', function() {
+		gameRunning = false;
+		if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+		stopGameWebcam();
+		if (gameModel) try { gameModel.dispose(); } catch (e) {}
+	});
 })();
