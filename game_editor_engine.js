@@ -1315,10 +1315,28 @@
 	async function autoStart(modelUuid) {
 		resetGameState();
 		if (modelUuid === 'none') { handleNoModel(); return; }
+
+		// Show fullscreen loading overlay
+		showLoadingOverlay('🤖 KI wird geladen...');
+		updateLoadingMessage('Kamera wird gestartet...');
+
 		setStatus('Kamera wird gestartet...');
-		if (!await startGameWebcam()) { setStatus('Kamera-Fehler'); return; }
+		if (!await startGameWebcam()) {
+			hideLoadingOverlay();
+			setStatus('Kamera-Fehler');
+			return;
+		}
+
+		updateLoadingMessage('Modell wird vorbereitet... Das kann einen Moment dauern!');
 		setStatus('Modell wird geladen...');
-		if (!await loadGameModel(modelUuid)) { setStatus('Modell-Fehler'); return; }
+		if (!await loadGameModel(modelUuid)) {
+			hideLoadingOverlay();
+			setStatus('Modell-Fehler');
+			return;
+		}
+
+		// Hide overlay and start game
+		hideLoadingOverlay();
 		startGameLoop();
 	}
 
@@ -1587,4 +1605,27 @@ function showConfetti() {
     if (typeof window.celebrate === 'function') {
         window.celebrate('confetti');
     }
+}
+
+// ─── Loading Overlay Helpers ────────────────────────────────────────
+
+function showLoadingOverlay(message) {
+    var overlay = document.getElementById('loading_overlay');
+    if (!overlay) return;
+    var title = overlay.querySelector('.loading-title');
+    if (title && message) title.textContent = message;
+    overlay.classList.remove('hidden');
+}
+
+function updateLoadingMessage(message) {
+    var overlay = document.getElementById('loading_overlay');
+    if (!overlay) return;
+    var subtitle = overlay.querySelector('.loading-subtitle');
+    if (subtitle) subtitle.textContent = message;
+}
+
+function hideLoadingOverlay() {
+    var overlay = document.getElementById('loading_overlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
 }

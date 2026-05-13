@@ -215,6 +215,21 @@
 <!-- 💡 TOOLTIP SYSTEM -->
 <div id="floating_tooltip" class="hidden"></div>
 
+<!-- 🔄 FULLSCREEN LOADING OVERLAY -->
+<div id="loading_overlay" class="loading-overlay hidden">
+    <div class="loading-content">
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-icon">🤖</div>
+        </div>
+        <h2 class="loading-title">KI wird geladen...</h2>
+        <p class="loading-subtitle">Einen Moment bitte! Dein Modell wird vorbereitet.</p>
+        <div class="loading-progress">
+            <div class="loading-bar"></div>
+        </div>
+    </div>
+</div>
+
 </div>
 
 <!-- Audio elements for sound effects -->
