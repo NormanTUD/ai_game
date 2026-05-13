@@ -7,13 +7,9 @@
 	<title>AI Game</title>
 	<link rel="stylesheet" href="style.css">
 	<link rel="stylesheet" href="auto_animations.css">
-	<script src="<?= asset('libs/plotly-latest.min.js') ?>"></script>
-	<script src="<?= asset('libs/annotorious.min.js') ?>"></script>
 	<script src="<?= asset('libs/jquery.min.js') ?>"></script>
 
-	<script src="<?= asset('main.js') ?>"></script>
 	<script src="<?= asset('label_annos.js') ?>"></script>
-	<script src="<?= asset('js_tests.js') ?>"></script>
 
 	<script src="<?= asset('libs/tf.js') ?>"></script>
 	<script src="<?= asset('libs/tf-backend-wasm.min.js') ?>"></script>
