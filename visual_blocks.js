@@ -93,7 +93,7 @@
 				{ type: 'celebrate_spectacular',  icon: '🤩', text: 'MEGA Feier!' },
 				{ type: 'celebrate_stop',         icon: '🛑', text: 'Feier stoppen' },
 			],
-			help: '🎓 Feiere mit tollen Animationen über die ganze Seite!'
+			help: '🎓 Konfetti!'
 		}
 	};
 
