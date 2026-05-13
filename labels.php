@@ -37,9 +37,6 @@
 			}
 		}
 
-		// Alte Kategorie-Tabelle
-		include("export_helper.php");
-
 		$categories = [];
 		$res = rquery('SELECT name FROM category ORDER BY id');
 		while ($row = mysqli_fetch_row($res)) {
@@ -52,9 +49,6 @@
 			$labels[] = $cat;
 		}
 	} else {
-		// Alte Kategorien ergänzen, falls nicht schon in model_labels
-		include("export_helper.php");
-
 		$categories = [];
 		$res = rquery('SELECT name FROM category ORDER BY id');
 		while ($row = mysqli_fetch_row($res)) {

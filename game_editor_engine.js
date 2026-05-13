@@ -121,15 +121,27 @@
 		}
 	}
 
+	var lastOverlayW = 0, lastOverlayH = 0;
+	var lastOverlayClientW = 0, lastOverlayClientH = 0;
+
 	function syncOverlaySize() {
 		if (!overlayCanvas || !video) return;
 		var vw = video.videoWidth, vh = video.videoHeight;
-		if (vw > 0 && vh > 0) {
+		var cw = video.clientWidth, ch = video.clientHeight;
+
+		// Only touch the DOM if dimensions actually changed
+		if (vw > 0 && vh > 0 && (vw !== lastOverlayW || vh !== lastOverlayH)) {
 			overlayCanvas.width = vw;
 			overlayCanvas.height = vh;
+			lastOverlayW = vw;
+			lastOverlayH = vh;
 		}
-		overlayCanvas.style.width = video.clientWidth + 'px';
-		overlayCanvas.style.height = video.clientHeight + 'px';
+		if (cw !== lastOverlayClientW || ch !== lastOverlayClientH) {
+			overlayCanvas.style.width = cw + 'px';
+			overlayCanvas.style.height = ch + 'px';
+			lastOverlayClientW = cw;
+			lastOverlayClientH = ch;
+		}
 	}
 
 	function stopGameWebcam() {
@@ -151,9 +163,25 @@
 
 		try {
 			var resp = await fetch('labels.php?model_uuid=' + encodeURIComponent(modelUuid));
-			if (resp.ok) gameLabels = await resp.json();
-			else gameLabels = [];
-		} catch (e) { gameLabels = []; }
+			if (resp.ok) {
+				var rawText = await resp.text();
+				console.log('[DEBUG] Raw labels response:', rawText);
+				try {
+					gameLabels = JSON.parse(rawText);
+				} catch (parseErr) {
+					console.error('[DEBUG] Labels JSON parse error:', parseErr);
+					gameLabels = [];
+				}
+			} else {
+				console.warn('[DEBUG] Labels fetch failed, status:', resp.status);
+				gameLabels = [];
+			}
+		} catch (e) {
+			console.error('[DEBUG] Labels fetch exception:', e);
+			gameLabels = [];
+		}
+
+		console.log('[DEBUG] gameLabels:', gameLabels, 'length:', gameLabels.length);
 
 		showModelLabels(gameLabels);
 
@@ -168,7 +196,6 @@
 			isLoadingModel = false;
 			setStatus('Modell geladen ✓');
 			appendOutput("✅ Modell geladen. Kategorien: [" + gameLabels.join(", ") + "]");
-			// Update block editor labels
 			if (typeof window.updateBlockEditorLabels === 'function') {
 				window.updateBlockEditorLabels(gameLabels);
 			}
@@ -243,8 +270,6 @@
 		var confThreshold = getGameConfThreshold();
 		var inputTensor = null, output = null;
 
-		var numTensorsBefore = tf.memory().numTensors;
-
 		try {
 			inputTensor = tf.tidy(function() {
 				return tf.browser.fromPixels(video)
@@ -270,16 +295,15 @@
 		var res;
 		try {
 			if (output instanceof tf.Tensor) {
-				res = output.arraySync();
+				res = await output.array();   // ← NON-BLOCKING
 				output.dispose();
 			} else if (Array.isArray(output)) {
-				res = output[0].arraySync();
+				res = await output[0].array(); // ← NON-BLOCKING
 				output.forEach(function(t) { try { t.dispose(); } catch (x) {} });
 			} else {
 				res = output;
 			}
 		} catch (e) {
-			// Ensure output tensors are disposed on error
 			if (output instanceof tf.Tensor) {
 				try { output.dispose(); } catch (x) {}
 			} else if (Array.isArray(output)) {
@@ -295,101 +319,80 @@
 			detections = [];
 		}
 
-		// Safety net: if tensors leaked, log a warning (dev mode)
-		var numTensorsAfter = tf.memory().numTensors;
-		if (numTensorsAfter > numTensorsBefore + 2) {
-			console.warn('[TF Leak] Tensors before: ' + numTensorsBefore + ', after: ' + numTensorsAfter + ' (leaked ' + (numTensorsAfter - numTensorsBefore) + ')');
-		}
-
 		return detections;
 	}
 
 	function processOutput(res, modelWidth, modelHeight, confThreshold) {
 		if (!res || !Array.isArray(res) || !Array.isArray(res[0]) || !Array.isArray(res[0][0])) return [];
 
-		var tensorsToDispose = [];
+		var boxesArr, scoresArr, numClasses;
 
 		try {
-			var rawTensor = tf.tensor3d(res);
-			tensorsToDispose.push(rawTensor);
+			var tidyResult = tf.tidy(function() {
+				var rawTensor = tf.tensor3d(res);
+				var s = rawTensor.shape;
+				var FEATURES = s[1], CANDIDATES = s[2];
 
-			var s = rawTensor.shape;
-			var FEATURES = s[1], CANDIDATES = s[2];
-
-			if (FEATURES > CANDIDATES) {
-				var transposed = rawTensor.transpose([0, 2, 1]);
-				tensorsToDispose.push(transposed);
-				rawTensor = transposed;
-				FEATURES = s[2]; CANDIDATES = s[1];
-			}
-
-			var numClasses = FEATURES - 4;
-			if (numClasses <= 0) {
-				tensorsToDispose.forEach(function(t) { try { t.dispose(); } catch (x) {} });
-				return [];
-			}
-
-			var predTensor = rawTensor.transpose([0, 2, 1]);
-			tensorsToDispose.push(predTensor);
-
-			var splits = tf.split(predTensor, [4, numClasses], 2);
-			tensorsToDispose.push(splits[0]);
-			tensorsToDispose.push(splits[1]);
-
-			var squeezedBoxes = splits[0].squeeze();
-			tensorsToDispose.push(squeezedBoxes);
-
-			var squeezedScores = splits[1].squeeze();
-			tensorsToDispose.push(squeezedScores);
-
-			var boxesArr = squeezedBoxes.arraySync();
-			var scoresArr = squeezedScores.arraySync();
-
-			// Dispose ALL tensors now that we have the JS arrays
-			tensorsToDispose.forEach(function(t) {
-				if (t && !t.isDisposed) {
-					try { t.dispose(); } catch (x) {}
+				if (FEATURES > CANDIDATES) {
+					rawTensor = rawTensor.transpose([0, 2, 1]);
+					var tmp = FEATURES;
+					FEATURES = CANDIDATES;
+					CANDIDATES = tmp;
 				}
+
+				var nc = FEATURES - 4;
+				if (nc <= 0) return null;
+
+				var predTensor = rawTensor.transpose([0, 2, 1]);
+				var splits = tf.split(predTensor, [4, nc], 2);
+				var squeezedBoxes = splits[0].squeeze();
+				var squeezedScores = splits[1].squeeze();
+
+				// Return JS arrays — everything else auto-disposed by tidy
+				return {
+					boxes: squeezedBoxes.arraySync(),
+					scores: squeezedScores.arraySync(),
+					numClasses: nc
+				};
 			});
-			tensorsToDispose = [];
 
-			var detections = [];
-			for (var i = 0; i < boxesArr.length; i++) {
-				var classScores = numClasses === 1 ? [scoresArr[i]] : scoresArr[i];
-				var bestScore = 0, bestClass = -1;
-				if (Array.isArray(classScores)) {
-					for (var c = 0; c < classScores.length; c++) {
-						if (classScores[c] > bestScore) { bestScore = classScores[c]; bestClass = c; }
-					}
-				} else { bestScore = classScores; bestClass = 0; }
-				if (bestScore < confThreshold) continue;
+			if (!tidyResult) return [];
 
-				var cx = boxesArr[i][0], cy = boxesArr[i][1], w = boxesArr[i][2], h = boxesArr[i][3];
-				var isPixel = cx > 2.0 || cy > 2.0;
-				var xMin, yMin, xMax, yMax;
-				if (isPixel) {
-					xMin = (cx - w / 2) / modelWidth; yMin = (cy - h / 2) / modelHeight;
-					xMax = (cx + w / 2) / modelWidth; yMax = (cy + h / 2) / modelHeight;
-				} else {
-					xMin = cx - w / 2; yMin = cy - h / 2; xMax = cx + w / 2; yMax = cy + h / 2;
-				}
-				xMin = Math.max(0, xMin); yMin = Math.max(0, yMin);
-				xMax = Math.min(1, xMax); yMax = Math.min(1, yMax);
-
-				var label = (gameLabels && gameLabels[bestClass]) ? gameLabels[bestClass] : ('class_' + bestClass);
-				detections.push({ xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax, score: bestScore, label: label });
-			}
-			return simpleNMS(detections, 0.5);
+			boxesArr = tidyResult.boxes;
+			scoresArr = tidyResult.scores;
+			numClasses = tidyResult.numClasses;
 
 		} catch (e) {
-			// Dispose anything we tracked on error
-			tensorsToDispose.forEach(function(t) {
-				if (t && !t.isDisposed) {
-					try { t.dispose(); } catch (x) {}
-				}
-			});
 			return [];
 		}
+
+		var detections = [];
+		for (var i = 0; i < boxesArr.length; i++) {
+			var classScores = numClasses === 1 ? [scoresArr[i]] : scoresArr[i];
+			var bestScore = 0, bestClass = -1;
+			if (Array.isArray(classScores)) {
+				for (var c = 0; c < classScores.length; c++) {
+					if (classScores[c] > bestScore) { bestScore = classScores[c]; bestClass = c; }
+				}
+			} else { bestScore = classScores; bestClass = 0; }
+			if (bestScore < confThreshold) continue;
+
+			var cx = boxesArr[i][0], cy = boxesArr[i][1], w = boxesArr[i][2], h = boxesArr[i][3];
+			var isPixel = cx > 2.0 || cy > 2.0;
+			var xMin, yMin, xMax, yMax;
+			if (isPixel) {
+				xMin = (cx - w / 2) / modelWidth; yMin = (cy - h / 2) / modelHeight;
+				xMax = (cx + w / 2) / modelWidth; yMax = (cy + h / 2) / modelHeight;
+			} else {
+				xMin = cx - w / 2; yMin = cy - h / 2; xMax = cx + w / 2; yMax = cy + h / 2;
+			}
+			xMin = Math.max(0, xMin); yMin = Math.max(0, yMin);
+			xMax = Math.min(1, xMax); yMax = Math.min(1, yMax);
+
+			var label = (gameLabels && gameLabels[bestClass]) ? gameLabels[bestClass] : ('class_' + bestClass);
+			detections.push({ xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax, score: bestScore, label: label });
+		}
+		return simpleNMS(detections, 0.5);
 	}
 
 	// ─── Draw detections ────────────────────────────────────────────────
@@ -1101,8 +1104,12 @@
 	var cachedParsed = null;
 	var lastCode = '';
 
+	var gameStepRunning = false;
+
 	async function gameStep() {
 		if (!gameRunning) return;
+		if (gameStepRunning) return; // prevent overlapping calls from setInterval
+		gameStepRunning = true;
 
 		var detections = [];
 
@@ -1116,7 +1123,7 @@
 
 		drawGameDetections(detections);
 
-		// Nur neu parsen wenn sich der Code geändert hat (großer Performance-Gewinn!)
+		// Only re-parse when code actually changed
 		var code = editor ? (editor.value || '') : '';
 		if (code !== lastCode || cachedParsed === null) {
 			cachedParsed = parseScript(code);
@@ -1128,7 +1135,7 @@
 		try {
 			var results = interpretScript(cachedParsed, vars);
 
-			// Persistente Variablen speichern
+			// Persist user variables
 			var builtinKeys = [
 				'detection_count',
 				'leftmost_detection', 'rightmost_detection',
@@ -1164,17 +1171,18 @@
 		}
 
 		setStatus('Läuft | Erkennungen: ' + detections.length);
+		gameStepRunning = false;
 	}
-
 
 	// ─── Auto-start: triggered by model selection ───────────────────────
 	async function autoStart(modelUuid) {
-		// ═══ CRITICAL: Always clear existing interval first ═══
+		// Always stop previous loop
+		gameRunning = false;
 		if (gameInterval) {
 			clearInterval(gameInterval);
 			gameInterval = null;
 		}
-		gameRunning = false;
+		gameStepRunning = false;
 		persistentVars = {};
 		cachedParsed = null;
 		lastCode = '';
@@ -1203,9 +1211,24 @@
 
 		gameRunning = true;
 		var fps = parseInt(document.getElementById('game_fps').value) || 3;
-		gameInterval = setInterval(gameStep, Math.round(1000 / fps));
 		setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
 		appendOutput("🎮 Spiel läuft!");
+
+		// Sequential async loop — prevents overlapping inference calls
+		(async function gameLoop() {
+			if (!gameRunning) return;
+			var targetDelay = Math.round(1000 / (parseInt(document.getElementById('game_fps').value) || 3));
+			var start = performance.now();
+
+			await gameStep();
+
+			var elapsed = performance.now() - start;
+			var wait = Math.max(0, targetDelay - elapsed);
+
+			if (gameRunning) {
+				gameInterval = setTimeout(gameLoop, wait);
+			}
+		})();
 	}
 
 	// ─── Model select change ────────────────────────────────────────────
@@ -1223,28 +1246,22 @@
 			var modelUuid = document.getElementById('game_model_select').value;
 			if (modelUuid === 'none') return;
 
-			// ═══ Stop everything cleanly ═══
+			// Stop everything cleanly
 			gameRunning = false;
 
-			// Clear the game interval (this was the bug — it wasn't cleared here)
 			if (gameInterval) {
-				clearInterval(gameInterval);
+				clearTimeout(gameInterval);  // ← changed from clearInterval
 				gameInterval = null;
 			}
 
-			// Clear legacy animFrameId if it somehow exists
 			if (animFrameId) {
 				cancelAnimationFrame(animFrameId);
 				animFrameId = null;
 			}
 
-			// Stop webcam so it can restart with new device
 			stopGameWebcam();
-
-			// Restart with new camera
 			autoStart(modelUuid);
 		});
-
 	}
 
 	// ─── Confidence slider ──────────────────────────────────────────────
@@ -1260,10 +1277,10 @@
 	var gameFpsInput = document.getElementById('game_fps');
 	if (gameFpsInput) {
 		gameFpsInput.addEventListener('input', function() {
-			if (!gameRunning || !gameInterval) return;
-			clearInterval(gameInterval);
+			if (!gameRunning) return;
+			// The new gameLoop reads fps dynamically each iteration,
+			// so no restart needed — just update the status display.
 			var fps = Math.max(1, Math.min(10, parseInt(this.value) || 3));
-			gameInterval = setInterval(gameStep, Math.round(1000 / fps));
 			setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
 		});
 	}
