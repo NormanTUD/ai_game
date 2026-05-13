@@ -21,11 +21,6 @@
 
 <body>
 
-<!-- Tab content -->
-<div id="top">
-	<span id="tab_home_top"><?php include("print_home.php"); ?></span>
-</div>
-
 <?php
 	if(isset($_GET["searchtag"])) {
 		print "<br><a href='export_annotations.php?show_categories[]=".urlencode($_GET["searchtag"])."'>Export this category</a>";
