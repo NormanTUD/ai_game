@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// GAME ENGINE v2 — Turing-complete, performant, non-blocking
+// GAME ENGINE v2 — Refactored: every function ≤ ~5 lines, easily testable
 // ═══════════════════════════════════════════════════════════════════════════
 
-(function() {
+(function () {
 	"use strict";
 
 	// ─── State ──────────────────────────────────────────────────────────
@@ -14,10 +14,18 @@
 	var gameLabels = [];
 	var currentModelUuid = null;
 	var isLoadingModel = false;
-
-	// Persistent user variables (survive across frames)
 	var persistentVars = {};
+	var outputBuffer = [];
+	var maxOutputLines = 200;
+	var lastOverlayW = 0, lastOverlayH = 0;
+	var lastOverlayClientW = 0, lastOverlayClientH = 0;
+	var gameInterval = null;
+	var cachedParsed = null;
+	var lastCode = '';
+	var gameStepRunning = false;
+	var MAX_ITERATIONS = 10000;
 
+	// ─── DOM refs ───────────────────────────────────────────────────────
 	var video = document.getElementById('game_video');
 	var overlayCanvas = document.getElementById('game_overlay_canvas');
 	var overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
@@ -27,16 +35,25 @@
 	var statusDiv = document.getElementById('game_status');
 	var camPlaceholder = document.getElementById('cam_placeholder');
 
-	// ─── Output helpers ─────────────────────────────────────────────────
-	var outputBuffer = [];
-	var maxOutputLines = 200;
+	// ═══════════════════════════════════════════════════════════════════════
+	// OUTPUT HELPERS
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function formatOutputLine(text) {
+		return '[' + new Date().toLocaleTimeString() + '] ' + text;
+	}
+
+	function trimBuffer(buffer, max) {
+		return buffer.length > max ? buffer.slice(-max) : buffer;
+	}
 
 	function appendOutput(text) {
-		var timestamp = new Date().toLocaleTimeString();
-		outputBuffer.push('[' + timestamp + '] ' + text);
-		if (outputBuffer.length > maxOutputLines) {
-			outputBuffer = outputBuffer.slice(-maxOutputLines);
-		}
+		outputBuffer.push(formatOutputLine(text));
+		outputBuffer = trimBuffer(outputBuffer, maxOutputLines);
+		renderOutput();
+	}
+
+	function renderOutput() {
 		outputDiv.textContent = outputBuffer.join('\n');
 		outputDiv.scrollTop = outputDiv.scrollHeight;
 	}
@@ -50,93 +67,136 @@
 		statusDiv.textContent = 'Status: ' + text;
 	}
 
-	// ─── Text overlay on video ──────────────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// TEXT OVERLAY
+	// ═══════════════════════════════════════════════════════════════════════
+
 	function showTextOnVideo(message, style) {
 		if (!textOverlay) return;
 		textOverlay.textContent = message;
 		textOverlay.className = 'text-overlay-visible';
-		if (style && style !== 'normal') {
-			textOverlay.classList.add('style-' + style);
-		}
+		if (style && style !== 'normal') textOverlay.classList.add('style-' + style);
 	}
 
 	function clearTextOverlay() {
-		if (textOverlay) {
-			textOverlay.textContent = '';
-			textOverlay.className = '';
-		}
+		if (!textOverlay) return;
+		textOverlay.textContent = '';
+		textOverlay.className = '';
 	}
 
-	// ─── Camera ─────────────────────────────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// CAMERA
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function requestCameraPermission() {
+		return navigator.mediaDevices.getUserMedia({ video: true });
+	}
+
+	function stopTempStream(stream) {
+		if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+	}
+
+	function createCameraOption(device, idx) {
+		var option = document.createElement('option');
+		option.value = device.deviceId;
+		option.textContent = device.label || ('Kamera ' + (idx + 1));
+		return option;
+	}
+
+	function filterVideoDevices(devices) {
+		return devices.filter(function (d) { return d.kind === 'videoinput'; });
+	}
+
+	function populateCameraSelect(select, videoDevices) {
+		select.innerHTML = '';
+		videoDevices.forEach(function (device, idx) {
+			select.appendChild(createCameraOption(device, idx));
+		});
+	}
+
 	async function enumerateGameCameras() {
 		var select = document.getElementById('game_camera_select');
 		try {
-			var tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-			if (tempStream) tempStream.getTracks().forEach(function(t) { t.stop(); });
+			stopTempStream(await requestCameraPermission());
 		} catch (e) {
 			select.innerHTML = '<option value="">Kein Kamerazugriff</option>';
 			return;
 		}
 		try {
 			var devices = await navigator.mediaDevices.enumerateDevices();
-			var videoDevices = devices.filter(function(d) { return d.kind === 'videoinput'; });
-			select.innerHTML = '';
-			videoDevices.forEach(function(device, idx) {
-				var option = document.createElement('option');
-				option.value = device.deviceId;
-				option.textContent = device.label || ('Kamera ' + (idx + 1));
-				select.appendChild(option);
-			});
+			populateCameraSelect(select, filterVideoDevices(devices));
 		} catch (e) {
 			select.innerHTML = '<option value="">Kamera-Fehler</option>';
 		}
 	}
 	enumerateGameCameras();
 
+	function getCameraConstraints() {
+		var deviceId = document.getElementById('game_camera_select').value;
+		return { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
+	}
+
+	function waitForVideoMetadata(vid) {
+		return new Promise(function (resolve) {
+			vid.onloadedmetadata = resolve;
+			setTimeout(resolve, 3000);
+		});
+	}
+
+	function waitForVideoReady(vid) {
+		return new Promise(function (resolve) {
+			if (vid.readyState >= 2) return resolve();
+			vid.oncanplay = resolve;
+			setTimeout(resolve, 2000);
+		});
+	}
+
+	function showVideoElement() {
+		if (camPlaceholder) camPlaceholder.style.display = 'none';
+		video.style.display = 'block';
+	}
+
 	async function startGameWebcam() {
 		if (webcamStream) return true;
-		var deviceId = document.getElementById('game_camera_select').value;
-		var constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
 		try {
-			webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+			webcamStream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
 			video.srcObject = webcamStream;
-			await new Promise(function(resolve) {
-				video.onloadedmetadata = resolve;
-				setTimeout(resolve, 3000);
-			});
-			await new Promise(function(resolve) {
-				if (video.readyState >= 2) return resolve();
-				video.oncanplay = resolve;
-				setTimeout(resolve, 2000);
-			});
+			await waitForVideoMetadata(video);
+			await waitForVideoReady(video);
 			syncOverlaySize();
-			if (camPlaceholder) camPlaceholder.style.display = 'none';
-			video.style.display = 'block';
+			showVideoElement();
 			return true;
 		} catch (e) {
-			webcamStream = null;
-			video.srcObject = null;
-			appendOutput("FEHLER: Kamera - " + (e.message || "Unbekannt"));
-			return false;
+			return handleWebcamError(e);
 		}
 	}
 
-	var lastOverlayW = 0, lastOverlayH = 0;
-	var lastOverlayClientW = 0, lastOverlayClientH = 0;
+	function handleWebcamError(e) {
+		webcamStream = null;
+		video.srcObject = null;
+		appendOutput("FEHLER: Kamera - " + (e.message || "Unbekannt"));
+		return false;
+	}
+
+	function overlayResolutionChanged(vw, vh) {
+		return vw > 0 && vh > 0 && (vw !== lastOverlayW || vh !== lastOverlayH);
+	}
+
+	function overlayClientSizeChanged(cw, ch) {
+		return cw !== lastOverlayClientW || ch !== lastOverlayClientH;
+	}
 
 	function syncOverlaySize() {
 		if (!overlayCanvas || !video) return;
 		var vw = video.videoWidth, vh = video.videoHeight;
 		var cw = video.clientWidth, ch = video.clientHeight;
-
-		// Only touch the DOM if dimensions actually changed
-		if (vw > 0 && vh > 0 && (vw !== lastOverlayW || vh !== lastOverlayH)) {
+		if (overlayResolutionChanged(vw, vh)) {
 			overlayCanvas.width = vw;
 			overlayCanvas.height = vh;
 			lastOverlayW = vw;
 			lastOverlayH = vh;
 		}
-		if (cw !== lastOverlayClientW || ch !== lastOverlayClientH) {
+		if (overlayClientSizeChanged(cw, ch)) {
 			overlayCanvas.style.width = cw + 'px';
 			overlayCanvas.style.height = ch + 'px';
 			lastOverlayClientW = cw;
@@ -146,7 +206,7 @@
 
 	function stopGameWebcam() {
 		if (webcamStream) {
-			try { webcamStream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {}
+			try { webcamStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
 			webcamStream = null;
 		}
 		video.srcObject = null;
@@ -154,60 +214,74 @@
 		if (camPlaceholder) camPlaceholder.style.display = 'flex';
 	}
 
-	// ─── Model loading ──────────────────────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// MODEL LOADING
+	// ═══════════════════════════════════════════════════════════════════════
+
+	async function fetchLabels(modelUuid) {
+		var resp = await fetch('labels.php?model_uuid=' + encodeURIComponent(modelUuid));
+		if (!resp.ok) return [];
+		try { return JSON.parse(await resp.text()); }
+		catch (e) { return []; }
+	}
+
+	function disposeOldModel() {
+		if (gameModel) try { gameModel.dispose(); } catch (e) { }
+	}
+
+	function getModelUrl(modelUuid) {
+		return "get_model_file.php?&uuid=" + encodeURIComponent(modelUuid) + "&filename=model.json";
+	}
+
+	async function loadTfModel(modelUuid) {
+		if (typeof tf === 'undefined') throw new Error("TensorFlow.js nicht geladen");
+		await tf.ready();
+		disposeOldModel();
+		return await tf.loadGraphModel(getModelUrl(modelUuid));
+	}
+
 	async function loadGameModel(modelUuid) {
 		if (gameModel && currentModelUuid === modelUuid) return true;
 		if (isLoadingModel) return false;
 		isLoadingModel = true;
 		setStatus('Modell wird geladen...');
 
-		try {
-			var resp = await fetch('labels.php?model_uuid=' + encodeURIComponent(modelUuid));
-			if (resp.ok) {
-				var rawText = await resp.text();
-				console.log('[DEBUG] Raw labels response:', rawText);
-				try {
-					gameLabels = JSON.parse(rawText);
-				} catch (parseErr) {
-					console.error('[DEBUG] Labels JSON parse error:', parseErr);
-					gameLabels = [];
-				}
-			} else {
-				console.warn('[DEBUG] Labels fetch failed, status:', resp.status);
-				gameLabels = [];
-			}
-		} catch (e) {
-			console.error('[DEBUG] Labels fetch exception:', e);
-			gameLabels = [];
-		}
-
-		console.log('[DEBUG] gameLabels:', gameLabels, 'length:', gameLabels.length);
-
+		gameLabels = await fetchLabels(modelUuid);
 		showModelLabels(gameLabels);
 
 		try {
-			if (typeof tf === 'undefined') throw new Error("TensorFlow.js nicht geladen");
-			await tf.ready();
-			if (gameModel) try { gameModel.dispose(); } catch (e) {}
-			gameModel = await tf.loadGraphModel(
-				"get_model_file.php?&uuid=" + encodeURIComponent(modelUuid) + "&filename=model.json"
-			);
+			gameModel = await loadTfModel(modelUuid);
 			currentModelUuid = modelUuid;
 			isLoadingModel = false;
 			setStatus('Modell geladen ✓');
 			appendOutput("✅ Modell geladen. Kategorien: [" + gameLabels.join(", ") + "]");
-			if (typeof window.updateBlockEditorLabels === 'function') {
-				window.updateBlockEditorLabels(gameLabels);
-			}
+			if (typeof window.updateBlockEditorLabels === 'function') window.updateBlockEditorLabels(gameLabels);
 			return true;
 		} catch (e) {
-			gameModel = null;
-			currentModelUuid = null;
-			isLoadingModel = false;
-			appendOutput("FEHLER: Modell - " + (e.message || "Unbekannt"));
-			setStatus('Modell-Fehler');
-			return false;
+			return handleModelError(e);
 		}
+	}
+
+	function handleModelError(e) {
+		gameModel = null;
+		currentModelUuid = null;
+		isLoadingModel = false;
+		appendOutput("FEHLER: Modell - " + (e.message || "Unbekannt"));
+		setStatus('Modell-Fehler');
+		return false;
+	}
+
+	function getLabelChipColor(idx) {
+		var colors = ['#4fc3f7', '#ffb74d', '#ba68c8', '#66bb6a', '#e57373', '#ff8a65'];
+		return colors[idx % colors.length];
+	}
+
+	function createLabelChip(label, idx) {
+		var chip = document.createElement('span');
+		chip.className = 'label-chip';
+		chip.style.background = getLabelChipColor(idx);
+		chip.textContent = label;
+		return chip;
 	}
 
 	function showModelLabels(labels) {
@@ -217,22 +291,18 @@
 		if (!labels || labels.length === 0) { wrapper.style.display = 'none'; return; }
 		wrapper.style.display = 'inline-flex';
 		container.innerHTML = '';
-		var colors = ['#4fc3f7', '#ffb74d', '#ba68c8', '#66bb6a', '#e57373', '#ff8a65'];
-		labels.forEach(function(label, idx) {
-			var chip = document.createElement('span');
-			chip.className = 'label-chip';
-			chip.style.background = colors[idx % colors.length];
-			chip.textContent = label;
-			container.appendChild(chip);
-		});
+		labels.forEach(function (label, idx) { container.appendChild(createLabelChip(label, idx)); });
 	}
 
-	// ─── Detection (same as before, abbreviated) ────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// DETECTION
+	// ═══════════════════════════════════════════════════════════════════════
+
 	function getModelInputShape() {
 		try {
 			if (gameModel.inputs && gameModel.inputs[0] && gameModel.inputs[0].shape)
 				return gameModel.inputs[0].shape.slice(1, 3);
-		} catch (e) {}
+		} catch (e) { }
 		return [640, 640];
 	}
 
@@ -240,282 +310,313 @@
 		return parseFloat(document.getElementById('game_conf_slider').value) || 0.3;
 	}
 
-	function computeIoU(a, b) {
+	function computeIntersection(a, b) {
 		var x1 = Math.max(a.xMin, b.xMin), y1 = Math.max(a.yMin, b.yMin);
 		var x2 = Math.min(a.xMax, b.xMax), y2 = Math.min(a.yMax, b.yMax);
-		var inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-		var areaA = (a.xMax - a.xMin) * (a.yMax - a.yMin);
-		var areaB = (b.xMax - b.xMin) * (b.yMax - b.yMin);
-		var union = areaA + areaB - inter;
+		return Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+	}
+
+	function computeArea(box) {
+		return (box.xMax - box.xMin) * (box.yMax - box.yMin);
+	}
+
+	function computeIoU(a, b) {
+		var inter = computeIntersection(a, b);
+		var union = computeArea(a) + computeArea(b) - inter;
 		return union <= 0 ? 0 : inter / union;
+	}
+
+	function isDominated(detection, kept, iouThresh) {
+		for (var j = 0; j < kept.length; j++) {
+			if (computeIoU(detection, kept[j]) > iouThresh) return true;
+		}
+		return false;
 	}
 
 	function simpleNMS(detections, iouThresh) {
 		if (!detections || detections.length === 0) return [];
-		detections.sort(function(a, b) { return b.score - a.score; });
+		detections.sort(function (a, b) { return b.score - a.score; });
 		var kept = [];
 		for (var i = 0; i < detections.length; i++) {
-			var dominated = false;
-			for (var j = 0; j < kept.length; j++) {
-				if (computeIoU(detections[i], kept[j]) > iouThresh) { dominated = true; break; }
-			}
-			if (!dominated) kept.push(detections[i]);
+			if (!isDominated(detections[i], kept, iouThresh)) kept.push(detections[i]);
 		}
 		return kept;
 	}
 
+	function createInputTensor(shape) {
+		return tf.tidy(function () {
+			return tf.browser.fromPixels(video).resizeBilinear([shape[0], shape[1]]).div(255).expandDims();
+		});
+	}
+
+	function disposeOutput(output) {
+		if (output instanceof tf.Tensor) {
+			try { output.dispose(); } catch (x) { }
+		} else if (Array.isArray(output)) {
+			output.forEach(function (t) { try { t.dispose(); } catch (x) { } });
+		}
+	}
+
+	async function extractOutputArray(output) {
+		if (output instanceof tf.Tensor) {
+			var res = await output.array();
+			output.dispose();
+			return res;
+		}
+		if (Array.isArray(output)) {
+			var res = await output[0].array();
+			output.forEach(function (t) { try { t.dispose(); } catch (x) { } });
+			return res;
+		}
+		return output;
+	}
+
+	function isDetectionReady() {
+		return gameModel && webcamStream && video.readyState >= 2;
+	}
+
 	async function runDetection() {
-		if (!gameModel || !webcamStream || video.readyState < 2) return [];
+		if (!isDetectionReady()) return [];
 		var shape = getModelInputShape();
 		var confThreshold = getGameConfThreshold();
 		var inputTensor = null, output = null;
 
-		try {
-			inputTensor = tf.tidy(function() {
-				return tf.browser.fromPixels(video)
-					.resizeBilinear([shape[0], shape[1]])
-					.div(255)
-					.expandDims();
-			});
-		} catch (e) {
-			if (inputTensor) try { inputTensor.dispose(); } catch (x) {}
-			return [];
-		}
+		try { inputTensor = createInputTensor(shape); }
+		catch (e) { if (inputTensor) try { inputTensor.dispose(); } catch (x) { } return []; }
 
-		try {
-			output = gameModel.execute(inputTensor);
-		} catch (e) {
-			if (inputTensor) try { inputTensor.dispose(); } catch (x) {}
-			return [];
-		}
+		try { output = gameModel.execute(inputTensor); }
+		catch (e) { inputTensor.dispose(); return []; }
 
-		// Dispose input immediately — no longer needed
-		if (inputTensor) try { inputTensor.dispose(); } catch (x) {}
+		inputTensor.dispose();
 
 		var res;
-		try {
-			if (output instanceof tf.Tensor) {
-				res = await output.array();   // ← NON-BLOCKING
-				output.dispose();
-			} else if (Array.isArray(output)) {
-				res = await output[0].array(); // ← NON-BLOCKING
-				output.forEach(function(t) { try { t.dispose(); } catch (x) {} });
-			} else {
-				res = output;
-			}
-		} catch (e) {
-			if (output instanceof tf.Tensor) {
-				try { output.dispose(); } catch (x) {}
-			} else if (Array.isArray(output)) {
-				output.forEach(function(t) { try { t.dispose(); } catch (x) {} });
-			}
-			return [];
-		}
+		try { res = await extractOutputArray(output); }
+		catch (e) { disposeOutput(output); return []; }
 
-		var detections;
-		try {
-			detections = processOutput(res, shape[1], shape[0], confThreshold);
-		} catch (e) {
-			detections = [];
-		}
+		try { return processOutput(res, shape[1], shape[0], confThreshold); }
+		catch (e) { return []; }
+	}
 
-		return detections;
+	// ─── Process output ─────────────────────────────────────────────────
+
+	function transposeIfNeeded(rawTensor) {
+		var s = rawTensor.shape;
+		if (s[1] > s[2]) return { tensor: rawTensor.transpose([0, 2, 1]), features: s[2], candidates: s[1] };
+		return { tensor: rawTensor, features: s[1], candidates: s[2] };
+	}
+
+	function extractBoxesAndScores(res) {
+		return tf.tidy(function () {
+			var rawTensor = tf.tensor3d(res);
+			var transposed = transposeIfNeeded(rawTensor);
+			var nc = transposed.features - 4;
+			if (nc <= 0) return null;
+			var predTensor = transposed.tensor.transpose([0, 2, 1]);
+			var splits = tf.split(predTensor, [4, nc], 2);
+			return {
+				boxes: splits[0].squeeze().arraySync(),
+				scores: splits[1].squeeze().arraySync(),
+				numClasses: nc
+			};
+		});
+	}
+
+	function isValidOutput(res) {
+		return res && Array.isArray(res) && Array.isArray(res[0]) && Array.isArray(res[0][0]);
+	}
+
+	function getBestClass(classScores) {
+		var bestScore = 0, bestClass = -1;
+		if (!Array.isArray(classScores)) return { score: classScores, classIdx: 0 };
+		for (var c = 0; c < classScores.length; c++) {
+			if (classScores[c] > bestScore) { bestScore = classScores[c]; bestClass = c; }
+		}
+		return { score: bestScore, classIdx: bestClass };
+	}
+
+	function boxToNormalized(cx, cy, w, h, modelWidth, modelHeight) {
+		var isPixel = cx > 2.0 || cy > 2.0;
+		if (isPixel) return {
+			xMin: (cx - w / 2) / modelWidth, yMin: (cy - h / 2) / modelHeight,
+			xMax: (cx + w / 2) / modelWidth, yMax: (cy + h / 2) / modelHeight
+		};
+		return { xMin: cx - w / 2, yMin: cy - h / 2, xMax: cx + w / 2, yMax: cy + h / 2 };
+	}
+
+	function clampBox(box) {
+		return {
+			xMin: Math.max(0, box.xMin), yMin: Math.max(0, box.yMin),
+			xMax: Math.min(1, box.xMax), yMax: Math.min(1, box.yMax)
+		};
+	}
+
+	function getLabelForClass(classIdx) {
+		return (gameLabels && gameLabels[classIdx]) ? gameLabels[classIdx] : ('class_' + classIdx);
+	}
+
+	function buildDetection(boxArr, classScores, modelWidth, modelHeight, confThreshold, numClasses) {
+		var scores = numClasses === 1 ? [classScores] : classScores;
+		var best = getBestClass(scores);
+		if (best.score < confThreshold) return null;
+		var raw = boxToNormalized(boxArr[0], boxArr[1], boxArr[2], boxArr[3], modelWidth, modelHeight);
+		var clamped = clampBox(raw);
+		return {
+			xMin: clamped.xMin, yMin: clamped.yMin, xMax: clamped.xMax, yMax: clamped.yMax,
+			score: best.score, label: getLabelForClass(best.classIdx)
+		};
 	}
 
 	function processOutput(res, modelWidth, modelHeight, confThreshold) {
-		if (!res || !Array.isArray(res) || !Array.isArray(res[0]) || !Array.isArray(res[0][0])) return [];
-
-		var boxesArr, scoresArr, numClasses;
-
-		try {
-			var tidyResult = tf.tidy(function() {
-				var rawTensor = tf.tensor3d(res);
-				var s = rawTensor.shape;
-				var FEATURES = s[1], CANDIDATES = s[2];
-
-				if (FEATURES > CANDIDATES) {
-					rawTensor = rawTensor.transpose([0, 2, 1]);
-					var tmp = FEATURES;
-					FEATURES = CANDIDATES;
-					CANDIDATES = tmp;
-				}
-
-				var nc = FEATURES - 4;
-				if (nc <= 0) return null;
-
-				var predTensor = rawTensor.transpose([0, 2, 1]);
-				var splits = tf.split(predTensor, [4, nc], 2);
-				var squeezedBoxes = splits[0].squeeze();
-				var squeezedScores = splits[1].squeeze();
-
-				// Return JS arrays — everything else auto-disposed by tidy
-				return {
-					boxes: squeezedBoxes.arraySync(),
-					scores: squeezedScores.arraySync(),
-					numClasses: nc
-				};
-			});
-
-			if (!tidyResult) return [];
-
-			boxesArr = tidyResult.boxes;
-			scoresArr = tidyResult.scores;
-			numClasses = tidyResult.numClasses;
-
-		} catch (e) {
-			return [];
-		}
-
+		if (!isValidOutput(res)) return [];
+		var extracted = extractBoxesAndScores(res);
+		if (!extracted) return [];
 		var detections = [];
-		for (var i = 0; i < boxesArr.length; i++) {
-			var classScores = numClasses === 1 ? [scoresArr[i]] : scoresArr[i];
-			var bestScore = 0, bestClass = -1;
-			if (Array.isArray(classScores)) {
-				for (var c = 0; c < classScores.length; c++) {
-					if (classScores[c] > bestScore) { bestScore = classScores[c]; bestClass = c; }
-				}
-			} else { bestScore = classScores; bestClass = 0; }
-			if (bestScore < confThreshold) continue;
-
-			var cx = boxesArr[i][0], cy = boxesArr[i][1], w = boxesArr[i][2], h = boxesArr[i][3];
-			var isPixel = cx > 2.0 || cy > 2.0;
-			var xMin, yMin, xMax, yMax;
-			if (isPixel) {
-				xMin = (cx - w / 2) / modelWidth; yMin = (cy - h / 2) / modelHeight;
-				xMax = (cx + w / 2) / modelWidth; yMax = (cy + h / 2) / modelHeight;
-			} else {
-				xMin = cx - w / 2; yMin = cy - h / 2; xMax = cx + w / 2; yMax = cy + h / 2;
-			}
-			xMin = Math.max(0, xMin); yMin = Math.max(0, yMin);
-			xMax = Math.min(1, xMax); yMax = Math.min(1, yMax);
-
-			var label = (gameLabels && gameLabels[bestClass]) ? gameLabels[bestClass] : ('class_' + bestClass);
-			detections.push({ xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax, score: bestScore, label: label });
+		for (var i = 0; i < extracted.boxes.length; i++) {
+			var det = buildDetection(extracted.boxes[i], extracted.scores[i], modelWidth, modelHeight, confThreshold, extracted.numClasses);
+			if (det) detections.push(det);
 		}
 		return simpleNMS(detections, 0.5);
 	}
 
-	// ─── Draw detections ────────────────────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// DRAW DETECTIONS
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function getDetectionColor(idx) {
+		var colors = ['#00ff88', '#ff6b9d', '#4fc3f7', '#ffb74d', '#ba68c8', '#e57373'];
+		return colors[idx % colors.length];
+	}
+
+	function drawBoundingBox(ctx, x, y, bw, bh, color) {
+		ctx.strokeStyle = color;
+		ctx.lineWidth = 3;
+		ctx.strokeRect(x, y, bw, bh);
+	}
+
+	function drawDetectionLabel(ctx, text, x, y, color) {
+		ctx.font = 'bold 14px sans-serif';
+		var tw = ctx.measureText(text).width;
+		ctx.fillStyle = color;
+		ctx.fillRect(x, y - 22, tw + 10, 22);
+		ctx.fillStyle = '#000';
+		ctx.fillText(text, x + 5, y - 6);
+	}
+
+	function drawSingleDetection(ctx, det, w, h, idx) {
+		var x = det.xMin * w, y = det.yMin * h;
+		var bw = (det.xMax - det.xMin) * w, bh = (det.yMax - det.yMin) * h;
+		var color = getDetectionColor(idx);
+		drawBoundingBox(ctx, x, y, bw, bh, color);
+		drawDetectionLabel(ctx, det.label + ' ' + (det.score * 100).toFixed(0) + '%', x, y, color);
+	}
+
 	function drawGameDetections(detections) {
 		if (!overlayCtx || !overlayCanvas) return;
 		syncOverlaySize();
 		var w = overlayCanvas.width, h = overlayCanvas.height;
 		overlayCtx.clearRect(0, 0, w, h);
 		if (!detections || detections.length === 0) return;
-
-		var colors = ['#00ff88', '#ff6b9d', '#4fc3f7', '#ffb74d', '#ba68c8', '#e57373'];
-		for (var i = 0; i < detections.length; i++) {
-			var det = detections[i];
-			var x = det.xMin * w, y = det.yMin * h;
-			var bw = (det.xMax - det.xMin) * w;
-			var bh = (det.yMax - det.yMin) * h;
-			var color = colors[i % colors.length];
-
-			overlayCtx.strokeStyle = color;
-			overlayCtx.lineWidth = 3;
-			overlayCtx.strokeRect(x, y, bw, bh);
-
-			var text = det.label + ' ' + (det.score * 100).toFixed(0) + '%';
-			overlayCtx.font = 'bold 14px sans-serif';
-			var tw = overlayCtx.measureText(text).width;
-			overlayCtx.fillStyle = color;
-			overlayCtx.fillRect(x, y - 22, tw + 10, 22);
-			overlayCtx.fillStyle = '#000';
-			overlayCtx.fillText(text, x + 5, y - 6);
-		}
+		for (var i = 0; i < detections.length; i++) drawSingleDetection(overlayCtx, detections[i], w, h, i);
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════
-	// TURING-COMPLETE DSL INTERPRETER
-	// Supports: variables, arithmetic, while loops, if/elif/else, 
-	//           string concat, comparisons, and/or/not, print, show_text
+	// DSL INTERPRETER — TOKENIZER & PARSER
 	// ═══════════════════════════════════════════════════════════════════════
 
-	var MAX_ITERATIONS = 10000; // prevent infinite loops
-
-	function tokenizeLine(line) {
-		var commentIdx = -1;
+	function findCommentIndex(line) {
 		var inStr = false, strChar = '';
 		for (var i = 0; i < line.length; i++) {
 			if (!inStr && (line[i] === '"' || line[i] === "'")) { inStr = true; strChar = line[i]; }
 			else if (inStr && line[i] === strChar) { inStr = false; }
-			else if (!inStr && line[i] === '#') { commentIdx = i; break; }
+			else if (!inStr && line[i] === '#') return i;
 		}
-		if (commentIdx !== -1) line = line.substring(0, commentIdx);
+		return -1;
+	}
+
+	function tokenizeLine(line) {
+		var idx = findCommentIndex(line);
+		if (idx !== -1) line = line.substring(0, idx);
 		return line.trim();
 	}
 
 	function parseScript(code) {
-		var lines = code.split('\n');
-		var parsed = [];
+		var lines = code.split('\n'), parsed = [];
 		for (var i = 0; i < lines.length; i++) {
 			var trimmed = tokenizeLine(lines[i]);
-			if (trimmed === '') continue;
-			parsed.push({ lineNum: i + 1, text: trimmed });
+			if (trimmed !== '') parsed.push({ lineNum: i + 1, text: trimmed });
 		}
 		return parsed;
 	}
 
-	// ─── Expression evaluator with arithmetic ───────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// EXPRESSION EVALUATOR
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function isNumberLiteral(expr) {
+		return /^-?\d+(\.\d+)?$/.test(expr);
+	}
+
+	function isStringLiteral(expr) {
+		return (expr.startsWith('"') && expr.endsWith('"')) || (expr.startsWith("'") && expr.endsWith("'"));
+	}
+
+	function isIdentifier(expr) {
+		return /^[a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*$/.test(expr);
+	}
+
+	function stripStringQuotes(expr) {
+		return expr.substring(1, expr.length - 1);
+	}
+
+	function isWrappedInParens(expr) {
+		return expr.startsWith('(') && findMatchingParen(expr, 0) === expr.length - 1;
+	}
+
+	function addValues(left, right) {
+		if (typeof left === 'string' || typeof right === 'string') return String(left) + String(right);
+		return (parseFloat(left) || 0) + (parseFloat(right) || 0);
+	}
+
+	function subtractValues(left, right) {
+		return (parseFloat(left) || 0) - (parseFloat(right) || 0);
+	}
+
+	function applyMulDivMod(op, left, right) {
+		var l = parseFloat(left) || 0, r = parseFloat(right) || 0;
+		if (op === '*') return l * r;
+		if (op === '/') return r !== 0 ? l / r : 0;
+		return r !== 0 ? l % r : 0;
+	}
+
 	function evaluateExpression(expr, vars) {
 		expr = expr.trim();
 		if (expr === '') return '';
+		if (isNumberLiteral(expr)) return parseFloat(expr);
+		if (isWrappedInParens(expr)) return evaluateExpression(expr.substring(1, expr.length - 1), vars);
 
-		// Number literal (check early, no ambiguity)
-		if (/^-?\d+(\.\d+)?$/.test(expr)) return parseFloat(expr);
+		var plusMinus = splitArithmetic(expr, ['+', '-']);
+		if (plusMinus) return evaluatePlusMinus(plusMinus, vars);
 
-		// Parenthesized expression
-		if (expr.startsWith('(') && findMatchingParen(expr, 0) === expr.length - 1) {
-			return evaluateExpression(expr.substring(1, expr.length - 1), vars);
-		}
+		var mulDiv = splitArithmetic(expr, ['*', '/', '%']);
+		if (mulDiv) return evaluateMulDiv(mulDiv, vars);
 
-		// String concatenation / Addition — check BEFORE string literal!
-		var plusMinusResult = splitArithmetic(expr, ['+', '-']);
-		if (plusMinusResult) {
-			var left = evaluateExpression(plusMinusResult.left, vars);
-			var right = evaluateExpression(plusMinusResult.right, vars);
-			if (plusMinusResult.op === '+') {
-				if (typeof left === 'string' || typeof right === 'string') {
-					return String(left) + String(right);
-				}
-				return (parseFloat(left) || 0) + (parseFloat(right) || 0);
-			} else {
-				return (parseFloat(left) || 0) - (parseFloat(right) || 0);
-			}
-		}
-
-		// Multiplication / Division / Modulo
-		var mulDivResult = splitArithmetic(expr, ['*', '/', '%']);
-		if (mulDivResult) {
-			var left = evaluateExpression(mulDivResult.left, vars);
-			var right = evaluateExpression(mulDivResult.right, vars);
-			var l = parseFloat(left) || 0;
-			var r = parseFloat(right) || 0;
-			if (mulDivResult.op === '*') return l * r;
-			if (mulDivResult.op === '/') return r !== 0 ? l / r : 0;
-			if (mulDivResult.op === '%') return r !== 0 ? l % r : 0;
-		}
-
-		// String literal (only AFTER we've confirmed no + operator outside strings)
-		if ((expr.startsWith('"') && expr.endsWith('"')) || (expr.startsWith("'") && expr.endsWith("'"))) {
-			return expr.substring(1, expr.length - 1);
-		}
-
-		// Variable lookup
+		if (isStringLiteral(expr)) return stripStringQuotes(expr);
 		if (vars.hasOwnProperty(expr)) return vars[expr];
-
-		// ═══ FIX: Check if it LOOKS like a variable name ═══
-		// If it matches a valid identifier pattern but isn't in vars,
-		// return 0 instead of the variable name as string.
-		// This prevents "rekord" showing up as text instead of 0.
-		if (/^[a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*$/.test(expr)) {
-			return 0;
-		}
-
-		// Unknown → return as string
+		if (isIdentifier(expr)) return 0;
 		return expr;
 	}
 
+	function evaluatePlusMinus(split, vars) {
+		var left = evaluateExpression(split.left, vars);
+		var right = evaluateExpression(split.right, vars);
+		return split.op === '+' ? addValues(left, right) : subtractValues(left, right);
+	}
+
+	function evaluateMulDiv(split, vars) {
+		var left = evaluateExpression(split.left, vars);
+		var right = evaluateExpression(split.right, vars);
+		return applyMulDivMod(split.op, left, right);
+	}
 
 	function findMatchingParen(str, openIdx) {
 		var depth = 0, inStr = false, strChar = '';
@@ -529,12 +630,13 @@
 		return -1;
 	}
 
+	function isUnaryMinus(expr, i) {
+		return i === 0 || /[+\-*/%=(]/.test(expr[i - 1]);
+	}
+
 	function splitArithmetic(expr, ops) {
-		// Find the LAST occurrence of op (for left-to-right evaluation)
-		// that is not inside a string or parentheses
 		var inStr = false, strChar = '', depth = 0;
 		var lastOpIdx = -1, lastOp = null;
-
 		for (var i = 0; i < expr.length; i++) {
 			var ch = expr[i];
 			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
@@ -544,80 +646,88 @@
 			else if (!inStr && depth === 0) {
 				for (var o = 0; o < ops.length; o++) {
 					if (ch === ops[o]) {
-						// For '-', skip if it's a unary minus (at start or after operator)
-						if (ch === '-' && (i === 0 || /[+\-*/%=(]/.test(expr[i-1]))) continue;
-							lastOpIdx = i;
-							lastOp = ops[o];
-						}
+						if (ch === '-' && isUnaryMinus(expr, i)) continue;
+						lastOpIdx = i;
+						lastOp = ops[o];
+					}
 				}
 			}
 		}
-
 		if (lastOpIdx <= 0 || lastOpIdx >= expr.length - 1) return null;
-		return {
-			left: expr.substring(0, lastOpIdx).trim(),
-			op: lastOp,
-			right: expr.substring(lastOpIdx + 1).trim()
-		};
+		return { left: expr.substring(0, lastOpIdx).trim(), op: lastOp, right: expr.substring(lastOpIdx + 1).trim() };
 	}
 
-	// ─── Condition evaluator ────────────────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// CONDITION EVALUATOR
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function replaceGermanOperators(condStr) {
+		return condStr
+			.replace(/\bist größer oder gleich\b/g, '>=')
+			.replace(/\bist kleiner oder gleich\b/g, '<=')
+			.replace(/\bist größer als\b/g, '>')
+			.replace(/\bist kleiner als\b/g, '<')
+			.replace(/\bist gleich\b/g, '==')
+			.replace(/\bist nicht\b/g, '!=');
+	}
+
+	function evaluateComparison(op, leftVal, rightVal) {
+		switch (op) {
+			case '==': return leftVal == rightVal;
+			case '!=': return leftVal != rightVal;
+			case '>=': return parseFloat(leftVal) >= parseFloat(rightVal);
+			case '<=': return parseFloat(leftVal) <= parseFloat(rightVal);
+			case '>': return parseFloat(leftVal) > parseFloat(rightVal);
+			case '<': return parseFloat(leftVal) < parseFloat(rightVal);
+		}
+		return false;
+	}
+
+	function isTruthy(val) {
+		return !!val && val !== "none" && val !== 0 && val !== "0" && val !== "";
+	}
+
 	function evaluateCondition(condStr, vars) {
-		condStr = condStr.trim();
+		condStr = replaceGermanOperators(condStr.trim());
 
-		// ═══ Deutsche Operatoren in Symbole umwandeln ═══
-		condStr = condStr.replace(/\bist größer oder gleich\b/g, '>=');
-		condStr = condStr.replace(/\bist kleiner oder gleich\b/g, '<=');
-		condStr = condStr.replace(/\bist größer als\b/g, '>');
-		condStr = condStr.replace(/\bist kleiner als\b/g, '<');
-		condStr = condStr.replace(/\bist gleich\b/g, '==');
-		condStr = condStr.replace(/\bist nicht\b/g, '!=');
-
-		// AND
 		var andParts = splitLogical(condStr, ' and ');
-		if (andParts.length > 1) {
-			for (var i = 0; i < andParts.length; i++) {
-				if (!evaluateCondition(andParts[i], vars)) return false;
-			}
-			return true;
-		}
+		if (andParts.length > 1) return evaluateAnd(andParts, vars);
 
-		// OR
 		var orParts = splitLogical(condStr, ' or ');
-		if (orParts.length > 1) {
-			for (var i = 0; i < orParts.length; i++) {
-				if (evaluateCondition(orParts[i], vars)) return true;
-			}
-			return false;
-		}
+		if (orParts.length > 1) return evaluateOr(orParts, vars);
 
-		// NOT
-		if (condStr.startsWith('not ')) {
-			return !evaluateCondition(condStr.substring(4), vars);
-		}
+		if (condStr.startsWith('not ')) return !evaluateCondition(condStr.substring(4), vars);
 
-		// Comparison operators
+		return evaluateComparisonOrTruthy(condStr, vars);
+	}
+
+	function evaluateAnd(parts, vars) {
+		for (var i = 0; i < parts.length; i++) {
+			if (!evaluateCondition(parts[i], vars)) return false;
+		}
+		return true;
+	}
+
+	function evaluateOr(parts, vars) {
+		for (var i = 0; i < parts.length; i++) {
+			if (evaluateCondition(parts[i], vars)) return true;
+		}
+		return false;
+	}
+
+	function evaluateComparisonOrTruthy(condStr, vars) {
 		var operators = ['==', '!=', '>=', '<=', '>', '<'];
 		for (var i = 0; i < operators.length; i++) {
-			var op = operators[i];
-			var opIdx = findOperatorIndex(condStr, op);
-			if (opIdx !== -1) {
-				var leftVal = evaluateExpression(condStr.substring(0, opIdx).trim(), vars);
-				var rightVal = evaluateExpression(condStr.substring(opIdx + op.length).trim(), vars);
-				switch (op) {
-					case '==': return leftVal == rightVal;
-					case '!=': return leftVal != rightVal;
-					case '>=': return parseFloat(leftVal) >= parseFloat(rightVal);
-					case '<=': return parseFloat(leftVal) <= parseFloat(rightVal);
-					case '>':  return parseFloat(leftVal) > parseFloat(rightVal);
-					case '<':  return parseFloat(leftVal) < parseFloat(rightVal);
-				}
-			}
+			var opIdx = findOperatorIndex(condStr, operators[i]);
+			if (opIdx !== -1) return evaluateComparisonAt(condStr, operators[i], opIdx, vars);
 		}
+		return isTruthy(evaluateExpression(condStr, vars));
+	}
 
-		// Truthy
-		var val = evaluateExpression(condStr, vars);
-		return !!val && val !== "none" && val !== 0 && val !== "0" && val !== "";
+	function evaluateComparisonAt(condStr, op, opIdx, vars) {
+		var leftVal = evaluateExpression(condStr.substring(0, opIdx).trim(), vars);
+		var rightVal = evaluateExpression(condStr.substring(opIdx + op.length).trim(), vars);
+		return evaluateComparison(op, leftVal, rightVal);
 	}
 
 	function findOperatorIndex(str, op) {
@@ -629,13 +739,18 @@
 			else if (!inStr && ch === '(') { depth++; }
 			else if (!inStr && ch === ')') { depth--; }
 			else if (!inStr && depth === 0 && str.substring(i, i + op.length) === op) {
-				if (op === '>' && i + 1 < str.length && str[i + 1] === '=') continue;
-				if (op === '<' && i + 1 < str.length && str[i + 1] === '=') continue;
-				if (op === '=' && i > 0 && (str[i-1] === '!' || str[i-1] === '>' || str[i-1] === '<')) continue;
+				if (isAmbiguousOperator(str, op, i)) continue;
 				return i;
 			}
 		}
 		return -1;
+	}
+
+	function isAmbiguousOperator(str, op, i) {
+		if (op === '>' && i + 1 < str.length && str[i + 1] === '=') return true;
+		if (op === '<' && i + 1 < str.length && str[i + 1] === '=') return true;
+		if (op === '=' && i > 0 && (str[i - 1] === '!' || str[i - 1] === '>' || str[i - 1] === '<')) return true;
+		return false;
 	}
 
 	function splitLogical(str, separator) {
@@ -656,642 +771,556 @@
 		return parts;
 	}
 
-	// ─── Interpreter with WHILE loops ───────────────────────────────────
+	// ═══════════════════════════════════════════════════════════════════════
+	// DSL INTERPRETER — MAIN EXECUTION
+	// ═══════════════════════════════════════════════════════════════════════
+
 	function interpretScript(parsedLines, vars) {
-		var output = [];
-		var showTextCommands = [];
-		var iterations = 0;
-
-		function execute(startIdx, endIdx) {
-			var idx = startIdx;
-			while (idx < endIdx) {
-				if (++iterations > MAX_ITERATIONS) {
-					output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-					return endIdx;
-				}
-
-				var line = parsedLines[idx].text;
-
-				// ─── WHILE loop ─────────────────────────────────
-				if (line.startsWith('while ')) {
-					idx = executeWhile(idx, endIdx);
-					continue;
-				}
-
-				// ─── FOR loop: for i in range(n) ────────────────
-				if (line.startsWith('for ')) {
-					idx = executeFor(idx, endIdx);
-					continue;
-				}
-
-				// ─── IF / ELIF / ELSE / END ─────────────────────
-				if (line.startsWith('if ')) {
-					idx = executeIfBlock(idx, endIdx);
-					continue;
-				}
-
-				if (line.startsWith('elif ') || line === 'else') { return idx; }
-
-				// ─── SHOW_TEXT ───────────────────────────────────
-				if (line.startsWith('show_text ')) {
-					var showArgs = parseShowTextArgs(line);
-					if (showArgs) {
-						var msg = evaluateExpression(showArgs.message, vars);
-						showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
-					}
-					idx++;
-					continue;
-				}
-
-				// ─── PRINT ──────────────────────────────────────
-				var printArg = parsePrintArgument(line);
-				if (printArg !== null) {
-					var printVal = evaluateExpression(printArg, vars);
-					output.push(String(printVal));
-					idx++;
-					continue;
-				}
-
-				// ─── VARIABLE ASSIGNMENT (with arithmetic) ──────
-				var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
-				if (assignMatch) {
-					vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
-					idx++;
-					continue;
-				}
-
-				// ─── COMPOUND ASSIGNMENT: +=, -=, *=, /= ───────
-				var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
-				if (compoundMatch) {
-					var cVarName = compoundMatch[1];
-					var cOp = compoundMatch[2];
-					var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
-					var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
-					switch (cOp) {
-						case '+=':
-							if (typeof cCurrent === 'string' || typeof cVal === 'string') {
-								vars[cVarName] = String(cCurrent) + String(cVal);
-							} else {
-								vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
-							}
-							break;
-						case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
-						case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
-						case '/=':
-							var divisor = parseFloat(cVal) || 0;
-							vars[cVarName] = divisor !== 0 ? (parseFloat(cCurrent) || 0) / divisor : 0;
-							break;
-						case '%=':
-							var mod = parseFloat(cVal) || 0;
-							vars[cVarName] = mod !== 0 ? (parseFloat(cCurrent) || 0) % mod : 0;
-							break;
-					}
-					idx++;
-					continue;
-				}
-
-				// Unknown line — skip
-				idx++;
-			}
-			return idx;
-		}
-
-		// ─── WHILE execution ────────────────────────────────────
-		function executeWhile(startIdx, endIdx) {
-			var line = parsedLines[startIdx].text;
-			var condStr = line.substring(6).trim(); // after 'while '
-
-			// Find the matching 'end'
-			var bodyStart = startIdx + 1;
-			var bodyEnd = findMatchingEnd(bodyStart, endIdx);
-
-			while (evaluateCondition(condStr, vars)) {
-				if (++iterations > MAX_ITERATIONS) {
-					output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-					break;
-				}
-				execute(bodyStart, bodyEnd);
-			}
-
-			// Skip past the 'end'
-			return bodyEnd + 1;
-		}
-
-		// ─── FOR execution: for i in range(n) ──────────────────
-		function executeFor(startIdx, endIdx) {
-			var line = parsedLines[startIdx].text;
-			// Parse: for <var> in range(<start>, <stop>) or range(<stop>)
-			var forMatch = line.match(/^for\s+([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s+in\s+range\((.+)\)$/);
-			if (!forMatch) {
-				output.push("⚠️ Syntax-Fehler: " + line);
-				return startIdx + 1;
-			}
-
-			var loopVar = forMatch[1];
-			var rangeArgs = forMatch[2].split(',').map(function(s) { return s.trim(); });
-
-			var rangeStart = 0, rangeEnd = 0, rangeStep = 1;
-			if (rangeArgs.length === 1) {
-				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-			} else if (rangeArgs.length === 2) {
-				rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
-			} else if (rangeArgs.length >= 3) {
-				rangeStart = Math.floor(parseFloat(evaluateExpression(rangeArgs[0], vars)) || 0);
-				rangeEnd = Math.floor(parseFloat(evaluateExpression(rangeArgs[1], vars)) || 0);
-				rangeStep = Math.floor(parseFloat(evaluateExpression(rangeArgs[2], vars)) || 1);
-				if (rangeStep === 0) rangeStep = 1;
-			}
-
-			var bodyStart = startIdx + 1;
-			var bodyEnd = findMatchingEnd(bodyStart, endIdx);
-
-			if (rangeStep > 0) {
-				for (var i = rangeStart; i < rangeEnd; i += rangeStep) {
-					if (++iterations > MAX_ITERATIONS) {
-						output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-						break;
-					}
-					vars[loopVar] = i;
-					execute(bodyStart, bodyEnd);
-				}
-			} else {
-				for (var i = rangeStart; i > rangeEnd; i += rangeStep) {
-					if (++iterations > MAX_ITERATIONS) {
-						output.push("⚠️ ABBRUCH: Zu viele Iterationen (Endlosschleife?)");
-						break;
-					}
-					vars[loopVar] = i;
-					execute(bodyStart, bodyEnd);
-				}
-			}
-
-			return bodyEnd + 1;
-		}
-
-		// ─── IF/ELIF/ELSE execution ────────────────────────────
-		function executeIfBlock(startIdx, endIdx) {
-			var idx = startIdx;
-			var conditionMet = false;
-
-			var ifLine = parsedLines[idx].text;
-			var ifCond = ifLine.substring(3).trim();
-			idx++;
-
-			if (evaluateCondition(ifCond, vars)) {
-				conditionMet = true;
-				idx = executeBodyUntilElifElseEnd(idx, endIdx);
-			} else {
-				idx = skipBodyUntilElifElseEnd(idx, endIdx);
-			}
-
-			while (idx < endIdx) {
-				var currentLine = parsedLines[idx].text;
-
-				if (currentLine.startsWith('elif ')) {
-					if (!conditionMet) {
-						var elifCond = currentLine.substring(5).trim();
-						idx++;
-						if (evaluateCondition(elifCond, vars)) {
-							conditionMet = true;
-							idx = executeBodyUntilElifElseEnd(idx, endIdx);
-						} else {
-							idx = skipBodyUntilElifElseEnd(idx, endIdx);
-						}
-					} else {
-						idx++;
-						idx = skipBodyUntilElifElseEnd(idx, endIdx);
-					}
-				} else if (currentLine === 'else') {
-					idx++;
-					if (!conditionMet) {
-						conditionMet = true;
-						idx = executeBodyUntilElifElseEnd(idx, endIdx);
-					} else {
-						idx = skipBodyUntilElifElseEnd(idx, endIdx);
-					}
-				} else {
-					break;
-				}
-			}
-			return idx;
-		}
-
-		function executeBodyUntilElifElseEnd(startIdx, endIdx) {
-			var idx = startIdx;
-			while (idx < endIdx) {
-				var line = parsedLines[idx].text;
-
-				if (line.startsWith('if ')) { idx = executeIfBlock(idx, endIdx); continue; }
-				if (line.startsWith('while ')) { idx = executeWhile(idx, endIdx); continue; }
-				if (line.startsWith('for ')) { idx = executeFor(idx, endIdx); continue; }
-
-				if (line.startsWith('elif ') || line === 'else') return idx;
-
-				// Execute single statement (reuse logic from execute())
-				if (line.startsWith('show_text ')) {
-					var showArgs = parseShowTextArgs(line);
-					if (showArgs) {
-						var msg = evaluateExpression(showArgs.message, vars);
-						showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
-					}
-					idx++; continue;
-				}
-
-				var printArg = parsePrintArgument(line);
-				if (printArg !== null) {
-					var printVal = evaluateExpression(printArg, vars);
-					output.push(String(printVal));
-					idx++; continue;
-				}
-
-				var assignMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
-				if (assignMatch) {
-					vars[assignMatch[1]] = evaluateExpression(assignMatch[2].trim(), vars);
-					idx++; continue;
-				}
-
-				var compoundMatch = line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
-				if (compoundMatch) {
-					var cVarName = compoundMatch[1];
-					var cOp = compoundMatch[2];
-					var cVal = evaluateExpression(compoundMatch[3].trim(), vars);
-					var cCurrent = vars.hasOwnProperty(cVarName) ? vars[cVarName] : 0;
-					switch (cOp) {
-						case '+=':
-							if (typeof cCurrent === 'string' || typeof cVal === 'string') {
-								vars[cVarName] = String(cCurrent) + String(cVal);
-							} else {
-								vars[cVarName] = (parseFloat(cCurrent) || 0) + (parseFloat(cVal) || 0);
-							}
-							break;
-						case '-=': vars[cVarName] = (parseFloat(cCurrent) || 0) - (parseFloat(cVal) || 0); break;
-						case '*=': vars[cVarName] = (parseFloat(cCurrent) || 0) * (parseFloat(cVal) || 0); break;
-						case '/=':
-							var d = parseFloat(cVal) || 0;
-							vars[cVarName] = d !== 0 ? (parseFloat(cCurrent) || 0) / d : 0;
-							break;
-						case '%=':
-							var m = parseFloat(cVal) || 0;
-							vars[cVarName] = m !== 0 ? (parseFloat(cCurrent) || 0) % m : 0;
-							break;
-					}
-					idx++; continue;
-				}
-
-				idx++;
-			}
-			return idx;
-		}
-
-		function skipBodyUntilElifElseEnd(startIdx, endIdx) {
-			var idx = startIdx;
-			var depth = 0;
-			while (idx < endIdx) {
-				var line = parsedLines[idx].text;
-				if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) { depth++; idx++; continue; }
-				if ((line.startsWith('elif ') || line === 'else') && depth === 0) {
-					return idx;
-				}
-				idx++;
-			}
-			return idx;
-		}
-
-		// ─── Find matching 'end' for while/for ─────────────────
-		function findMatchingEnd(startIdx, endIdx) {
-			var depth = 0;
-			for (var i = startIdx; i < endIdx; i++) {
-				var line = parsedLines[i].text;
-				if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) {
-					depth++;
-				}
-			}
-			return endIdx; // no matching end found
-		}
-
-		execute(0, parsedLines.length);
-		return { output: output, showTextCommands: showTextCommands };
+		var state = { output: [], showTextCommands: [], iterations: 0 };
+		execute(parsedLines, vars, state, 0, parsedLines.length);
+		return { output: state.output, showTextCommands: state.showTextCommands };
 	}
 
-	// ─── Parse show_text arguments ──────────────────────────────────────
+	function execute(parsedLines, vars, state, startIdx, endIdx) {
+		var idx = startIdx;
+		while (idx < endIdx) {
+			if (++state.iterations > MAX_ITERATIONS) { state.output.push("⚠️ ABBRUCH: Zu viele Iterationen"); return endIdx; }
+			idx = executeLine(parsedLines, vars, state, idx, endIdx);
+		}
+		return idx;
+	}
+
+	function executeLine(parsedLines, vars, state, idx, endIdx) {
+		var line = parsedLines[idx].text;
+		if (line.startsWith('while ')) return executeWhile(parsedLines, vars, state, idx, endIdx);
+		if (line.startsWith('for ')) return executeFor(parsedLines, vars, state, idx, endIdx);
+		if (line.startsWith('if ')) return executeIfBlock(parsedLines, vars, state, idx, endIdx);
+		if (line.startsWith('elif ') || line === 'else') return idx;
+		return executeSingleStatement(line, vars, state) ? idx + 1 : idx + 1;
+	}
+
+	function executeSingleStatement(line, vars, state) {
+		if (tryShowText(line, vars, state)) return true;
+		if (tryPrint(line, vars, state)) return true;
+		if (tryAssignment(line, vars)) return true;
+		if (tryCompoundAssignment(line, vars)) return true;
+		return false;
+	}
+
+	// ─── Show Text ──────────────────────────────────────────────────────
+
+	function tryShowText(line, vars, state) {
+		if (!line.startsWith('show_text ')) return false;
+		var showArgs = parseShowTextArgs(line);
+		if (!showArgs) return false;
+		var msg = evaluateExpression(showArgs.message, vars);
+		state.showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
+		return true;
+	}
+
+	// ─── Print ──────────────────────────────────────────────────────────
+
+	function tryPrint(line, vars, state) {
+		var printArg = parsePrintArgument(line);
+		if (printArg === null) return false;
+		state.output.push(String(evaluateExpression(printArg, vars)));
+		return true;
+	}
+
+	// ─── Assignment ─────────────────────────────────────────────────────
+
+	function getAssignmentMatch(line) {
+		return line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*=\s*(.+)$/);
+	}
+
+	function tryAssignment(line, vars) {
+		var match = getAssignmentMatch(line);
+		if (!match) return false;
+		vars[match[1]] = evaluateExpression(match[2].trim(), vars);
+		return true;
+	}
+
+	// ─── Compound Assignment ────────────────────────────────────────────
+
+	function getCompoundMatch(line) {
+		return line.match(/^([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s*(\+=|-=|\*=|\/=|%=)\s*(.+)$/);
+	}
+
+	function applyCompoundOp(op, current, val) {
+		if (op === '+=') return addValues(current, val);
+		if (op === '-=') return (parseFloat(current) || 0) - (parseFloat(val) || 0);
+		if (op === '*=') return (parseFloat(current) || 0) * (parseFloat(val) || 0);
+		if (op === '/=') return (parseFloat(val) || 0) !== 0 ? (parseFloat(current) || 0) / (parseFloat(val) || 0) : 0;
+		return (parseFloat(val) || 0) !== 0 ? (parseFloat(current) || 0) % (parseFloat(val) || 0) : 0;
+	}
+
+	function tryCompoundAssignment(line, vars) {
+		var match = getCompoundMatch(line);
+		if (!match) return false;
+		var current = vars.hasOwnProperty(match[1]) ? vars[match[1]] : 0;
+		var val = evaluateExpression(match[3].trim(), vars);
+		vars[match[1]] = applyCompoundOp(match[2], current, val);
+		return true;
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// WHILE LOOP
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function extractWhileCondition(line) {
+		return line.substring(6).trim();
+	}
+
+	function executeWhile(parsedLines, vars, state, startIdx, endIdx) {
+		var condStr = extractWhileCondition(parsedLines[startIdx].text);
+		var bodyStart = startIdx + 1;
+		var bodyEnd = findMatchingEnd(parsedLines, bodyStart, endIdx);
+		runWhileBody(parsedLines, vars, state, condStr, bodyStart, bodyEnd);
+		return bodyEnd + 1;
+	}
+
+	function runWhileBody(parsedLines, vars, state, condStr, bodyStart, bodyEnd) {
+		while (evaluateCondition(condStr, vars)) {
+			if (++state.iterations > MAX_ITERATIONS) { state.output.push("⚠️ ABBRUCH: Zu viele Iterationen"); break; }
+			execute(parsedLines, vars, state, bodyStart, bodyEnd);
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// FOR LOOP
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function parseForHeader(line) {
+		return line.match(/^for\s+([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)\s+in\s+range\((.+)\)$/);
+	}
+
+	function parseRangeArgs(argsStr, vars) {
+		var args = argsStr.split(',').map(function (s) { return s.trim(); });
+		var start = 0, end = 0, step = 1;
+		if (args.length === 1) { end = Math.floor(parseFloat(evaluateExpression(args[0], vars)) || 0); }
+		else if (args.length === 2) {
+			start = Math.floor(parseFloat(evaluateExpression(args[0], vars)) || 0);
+			end = Math.floor(parseFloat(evaluateExpression(args[1], vars)) || 0);
+		} else {
+			start = Math.floor(parseFloat(evaluateExpression(args[0], vars)) || 0);
+			end = Math.floor(parseFloat(evaluateExpression(args[1], vars)) || 0);
+			step = Math.floor(parseFloat(evaluateExpression(args[2], vars)) || 1);
+			if (step === 0) step = 1;
+		}
+		return { start: start, end: end, step: step };
+	}
+
+	function executeFor(parsedLines, vars, state, startIdx, endIdx) {
+		var match = parseForHeader(parsedLines[startIdx].text);
+		if (!match) { state.output.push("⚠️ Syntax-Fehler: " + parsedLines[startIdx].text); return startIdx + 1; }
+		var loopVar = match[1];
+		var range = parseRangeArgs(match[2], vars);
+		var bodyStart = startIdx + 1;
+		var bodyEnd = findMatchingEnd(parsedLines, bodyStart, endIdx);
+		runForBody(parsedLines, vars, state, loopVar, range, bodyStart, bodyEnd);
+		return bodyEnd + 1;
+	}
+
+	function shouldContinueFor(i, range) {
+		return range.step > 0 ? i < range.end : i > range.end;
+	}
+
+	function runForBody(parsedLines, vars, state, loopVar, range, bodyStart, bodyEnd) {
+		for (var i = range.start; shouldContinueFor(i, range); i += range.step) {
+			if (++state.iterations > MAX_ITERATIONS) { state.output.push("⚠️ ABBRUCH: Zu viele Iterationen"); break; }
+			vars[loopVar] = i;
+			execute(parsedLines, vars, state, bodyStart, bodyEnd);
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// IF / ELIF / ELSE
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function extractIfCondition(line) {
+		return line.substring(3).trim();
+	}
+
+	function extractElifCondition(line) {
+		return line.substring(5).trim();
+	}
+
+	function executeIfBlock(parsedLines, vars, state, startIdx, endIdx) {
+		var conditionMet = false;
+		var ifCond = extractIfCondition(parsedLines[startIdx].text);
+		var idx = startIdx + 1;
+
+		if (evaluateCondition(ifCond, vars)) {
+			conditionMet = true;
+			idx = executeBodyUntilBranch(parsedLines, vars, state, idx, endIdx);
+		} else {
+			idx = skipBodyUntilBranch(parsedLines, idx, endIdx);
+		}
+
+		return processRemainingBranches(parsedLines, vars, state, idx, endIdx, conditionMet);
+	}
+
+	function processRemainingBranches(parsedLines, vars, state, idx, endIdx, conditionMet) {
+		while (idx < endIdx) {
+			var line = parsedLines[idx].text;
+			if (line.startsWith('elif ')) {
+				idx = handleElif(parsedLines, vars, state, idx, endIdx, conditionMet);
+				conditionMet = conditionMet || wasConditionMet(parsedLines, vars, line, conditionMet);
+			} else if (line === 'else') {
+				idx = handleElse(parsedLines, vars, state, idx, endIdx, conditionMet);
+				break;
+			} else { break; }
+		}
+		return idx;
+	}
+
+	function handleElif(parsedLines, vars, state, idx, endIdx, conditionMet) {
+		var elifCond = extractElifCondition(parsedLines[idx].text);
+		idx++;
+		if (!conditionMet && evaluateCondition(elifCond, vars)) {
+			return executeBodyUntilBranch(parsedLines, vars, state, idx, endIdx);
+		}
+		return skipBodyUntilBranch(parsedLines, idx, endIdx);
+	}
+
+	function wasConditionMet(parsedLines, vars, line, alreadyMet) {
+		if (alreadyMet) return true;
+		return evaluateCondition(extractElifCondition(line), vars);
+	}
+
+	function handleElse(parsedLines, vars, state, idx, endIdx, conditionMet) {
+		idx++;
+		if (!conditionMet) return executeBodyUntilBranch(parsedLines, vars, state, idx, endIdx);
+		return skipBodyUntilBranch(parsedLines, idx, endIdx);
+	}
+
+	function executeBodyUntilBranch(parsedLines, vars, state, startIdx, endIdx) {
+		var idx = startIdx;
+		while (idx < endIdx) {
+			var line = parsedLines[idx].text;
+			if (line.startsWith('elif ') || line === 'else') return idx;
+			if (line.startsWith('if ')) { idx = executeIfBlock(parsedLines, vars, state, idx, endIdx); continue; }
+			if (line.startsWith('while ')) { idx = executeWhile(parsedLines, vars, state, idx, endIdx); continue; }
+			if (line.startsWith('for ')) { idx = executeFor(parsedLines, vars, state, idx, endIdx); continue; }
+			executeSingleStatement(line, vars, state);
+			idx++;
+		}
+		return idx;
+	}
+
+	function skipBodyUntilBranch(parsedLines, startIdx, endIdx) {
+		var idx = startIdx, depth = 0;
+		while (idx < endIdx) {
+			var line = parsedLines[idx].text;
+			if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) { depth++; idx++; continue; }
+			if ((line.startsWith('elif ') || line === 'else') && depth === 0) return idx;
+			idx++;
+		}
+		return idx;
+	}
+
+	// ─── Find matching end ──────────────────────────────────────────────
+
+	function findMatchingEnd(parsedLines, startIdx, endIdx) {
+		var depth = 0;
+		for (var i = startIdx; i < endIdx; i++) {
+			var line = parsedLines[i].text;
+			if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) depth++;
+		}
+		return endIdx;
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// PARSE HELPERS
+	// ═══════════════════════════════════════════════════════════════════════
+
 	function parseShowTextArgs(line) {
 		var afterCmd = line.substring('show_text '.length).trim();
 		if (!afterCmd) return null;
-
-		var message = '';
-		var style = 'normal';
 		var styles = ['normal', 'winner', 'loser', 'draw'];
+		var lastSpace = findLastUnquotedSpace(afterCmd);
+		return extractStyleFromArgs(afterCmd, lastSpace, styles);
+	}
 
-		var lastSpace = -1;
-		var inStr = false, strChar = '';
-		for (var i = 0; i < afterCmd.length; i++) {
-			var ch = afterCmd[i];
+	function findLastUnquotedSpace(str) {
+		var inStr = false, strChar = '', lastSpace = -1;
+		for (var i = 0; i < str.length; i++) {
+			var ch = str[i];
 			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
 			else if (inStr && ch === strChar) { inStr = false; }
 			else if (!inStr && ch === ' ') { lastSpace = i; }
 		}
+		return lastSpace;
+	}
 
-		if (!inStr && lastSpace !== -1) {
-			var candidate = afterCmd.substring(lastSpace + 1);
-			if (styles.indexOf(candidate) !== -1) {
-				style = candidate;
-				message = afterCmd.substring(0, lastSpace).trim();
-			} else {
-				message = afterCmd;
-			}
-		} else {
-			message = afterCmd;
-		}
-
-		return { message: message, style: style };
+	function extractStyleFromArgs(afterCmd, lastSpace, styles) {
+		if (lastSpace === -1) return { message: afterCmd, style: 'normal' };
+		var candidate = afterCmd.substring(lastSpace + 1);
+		if (styles.indexOf(candidate) !== -1) return { message: afterCmd.substring(0, lastSpace).trim(), style: candidate };
+		return { message: afterCmd, style: 'normal' };
 	}
 
 	function parsePrintArgument(line) {
-		if (!line.startsWith('print') && !line.startsWith('show_text')) return null;
-		var keyword = line.startsWith('show_text') ? 'show_text' : 'print';
-		var afterKeyword = line.substring(keyword.length);
-		if (afterKeyword.startsWith('(')) {
-			var depth = 0, inStr = false, strChar = '';
-			for (var i = 0; i < afterKeyword.length; i++) {
-				var ch = afterKeyword[i];
-				if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
-				else if (inStr && ch === strChar) { inStr = false; }
-				else if (!inStr && ch === '(') { depth++; }
-				else if (!inStr && ch === ')') { depth--; if (depth === 0) return afterKeyword.substring(1, i).trim(); }
-			}
-			return afterKeyword.substring(1).trim();
-		}
-		if (afterKeyword.startsWith(' ') || afterKeyword.startsWith('\t')) {
-			return afterKeyword.trim();
-		}
+		if (!line.startsWith('print')) return null;
+		var afterKeyword = line.substring(5);
+		if (afterKeyword.startsWith('(')) return extractParenContent(afterKeyword);
+		if (afterKeyword.startsWith(' ') || afterKeyword.startsWith('\t')) return afterKeyword.trim();
 		return null;
 	}
 
-	// ─── Build context from detections ──────────────────────────────────
-	function buildDSLContext(detections) {
-		// Start with persistent vars (survive across frames)
-		var vars = {};
-		for (var key in persistentVars) {
-			if (persistentVars.hasOwnProperty(key)) {
-				vars[key] = persistentVars[key];
-			}
+	function extractParenContent(str) {
+		var depth = 0, inStr = false, strChar = '';
+		for (var i = 0; i < str.length; i++) {
+			var ch = str[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && ch === '(') { depth++; }
+			else if (!inStr && ch === ')') { depth--; if (depth === 0) return str.substring(1, i).trim(); }
 		}
+		return str.substring(1).trim();
+	}
 
-		// Detection builtins
+	// ═══════════════════════════════════════════════════════════════════════
+	// BUILD DSL CONTEXT FROM DETECTIONS
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function copyPersistentVars(vars) {
+		for (var key in persistentVars) {
+			if (persistentVars.hasOwnProperty(key)) vars[key] = persistentVars[key];
+		}
+	}
+
+	function initDetectionVars(vars) {
 		vars['detection_count'] = 0;
-		vars['leftmost_detection'] = 'none';
-		vars['rightmost_detection'] = 'none';
-		vars['topmost_detection'] = 'none';
-		vars['bottommost_detection'] = 'none';
-		vars['largest_detection'] = 'none';
-		vars['smallest_detection'] = 'none';
-		vars['highest_conf_detection'] = 'none';
-		vars['leftmost_detection.probability'] = 0;
-		vars['rightmost_detection.probability'] = 0;
-		vars['topmost_detection.probability'] = 0;
-		vars['bottommost_detection.probability'] = 0;
-		vars['largest_detection.probability'] = 0;
-		vars['smallest_detection.probability'] = 0;
-		vars['highest_conf_detection.probability'] = 0;
+		var positions = ['leftmost', 'rightmost', 'topmost', 'bottommost', 'largest', 'smallest', 'highest_conf'];
+		for (var i = 0; i < positions.length; i++) {
+			vars[positions[i] + '_detection'] = 'none';
+			vars[positions[i] + '_detection.probability'] = 0;
+		}
+	}
 
-		if (!detections || detections.length === 0) return vars;
+	function computeDetectionArea(d) {
+		return (d.xMax - d.xMin) * (d.yMax - d.yMin);
+	}
 
-		vars['detection_count'] = detections.length;
-
-		var leftmost = detections[0], rightmost = detections[0];
-		var topmost = detections[0], bottommost = detections[0];
-		var largest = detections[0], smallest = detections[0];
-		var highestConf = detections[0];
-
+	function findExtremeDetections(detections) {
+		var result = { leftmost: detections[0], rightmost: detections[0], topmost: detections[0], bottommost: detections[0], largest: detections[0], smallest: detections[0], highest_conf: detections[0] };
 		for (var i = 1; i < detections.length; i++) {
 			var d = detections[i];
-			if (d.xMin < leftmost.xMin) leftmost = d;
-			if (d.xMax > rightmost.xMax) rightmost = d;
-			if (d.yMin < topmost.yMin) topmost = d;
-			if (d.yMax > bottommost.yMax) bottommost = d;
-			var area = (d.xMax - d.xMin) * (d.yMax - d.yMin);
-			var largestArea = (largest.xMax - largest.xMin) * (largest.yMax - largest.yMin);
-			var smallestArea = (smallest.xMax - smallest.xMin) * (smallest.yMax - smallest.yMin);
-			if (area > largestArea) largest = d;
-			if (area < smallestArea) smallest = d;
-			if (d.score > highestConf.score) highestConf = d;
+			if (d.xMin < result.leftmost.xMin) result.leftmost = d;
+			if (d.xMax > result.rightmost.xMax) result.rightmost = d;
+			if (d.yMin < result.topmost.yMin) result.topmost = d;
+			if (d.yMax > result.bottommost.yMax) result.bottommost = d;
+			if (computeDetectionArea(d) > computeDetectionArea(result.largest)) result.largest = d;
+			if (computeDetectionArea(d) < computeDetectionArea(result.smallest)) result.smallest = d;
+			if (d.score > result.highest_conf.score) result.highest_conf = d;
 		}
+		return result;
+	}
 
-		vars['leftmost_detection'] = leftmost.label;
-		vars['leftmost_detection.probability'] = leftmost.score;
-		vars['rightmost_detection'] = rightmost.label;
-		vars['rightmost_detection.probability'] = rightmost.score;
-		vars['topmost_detection'] = topmost.label;
-		vars['topmost_detection.probability'] = topmost.score;
-		vars['bottommost_detection'] = bottommost.label;
-		vars['bottommost_detection.probability'] = bottommost.score;
-		vars['largest_detection'] = largest.label;
-		vars['largest_detection.probability'] = largest.score;
-		vars['smallest_detection'] = smallest.label;
-		vars['smallest_detection.probability'] = smallest.score;
-		vars['highest_conf_detection'] = highestConf.label;
-		vars['highest_conf_detection.probability'] = highestConf.score;
+	function assignExtremeVars(vars, extremes) {
+		var keys = ['leftmost', 'rightmost', 'topmost', 'bottommost', 'largest', 'smallest', 'highest_conf'];
+		for (var i = 0; i < keys.length; i++) {
+			vars[keys[i] + '_detection'] = extremes[keys[i]].label;
+			vars[keys[i] + '_detection.probability'] = extremes[keys[i]].score;
+		}
+	}
 
+	function buildDSLContext(detections) {
+		var vars = {};
+		copyPersistentVars(vars);
+		initDetectionVars(vars);
+		if (!detections || detections.length === 0) return vars;
+		vars['detection_count'] = detections.length;
+		assignExtremeVars(vars, findExtremeDetections(detections));
 		return vars;
 	}
 
-	// ─── Game loop (requestAnimationFrame based) ────────────────────────
-	var evalInterval = 333; // ~3 fps default
+	// ═══════════════════════════════════════════════════════════════════════
+	// GAME LOOP
+	// ═══════════════════════════════════════════════════════════════════════
 
-	// ─── Game loop (smooth fixed interval) ────────────────────────────────
-	var gameInterval = null;
-	var cachedParsed = null;
-	var lastCode = '';
+	function getTargetDelay() {
+		var fps = parseInt(document.getElementById('game_fps').value) || 3;
+		return Math.round(1000 / fps);
+	}
 
-	var gameStepRunning = false;
+	function getEditorCode() {
+		return editor ? (editor.value || '') : '';
+	}
 
-	async function gameStep() {
-		if (!gameRunning) return;
-		if (gameStepRunning) return; // prevent overlapping calls from setInterval
-		gameStepRunning = true;
-
-		var detections = [];
-
-		if (gameModel && webcamStream && video.readyState >= 2) {
-			try {
-				detections = await runDetection();
-			} catch (e) {
-				detections = [];
-			}
-		}
-
-		drawGameDetections(detections);
-
-		// Only re-parse when code actually changed
-		var code = editor ? (editor.value || '') : '';
+	function updateCachedParsed() {
+		var code = getEditorCode();
 		if (code !== lastCode || cachedParsed === null) {
 			cachedParsed = parseScript(code);
 			lastCode = code;
 		}
+	}
 
+	function getBuiltinKeys() {
+		return [
+			'detection_count',
+			'leftmost_detection', 'rightmost_detection',
+			'topmost_detection', 'bottommost_detection',
+			'largest_detection', 'smallest_detection',
+			'highest_conf_detection',
+			'leftmost_detection.probability', 'rightmost_detection.probability',
+			'topmost_detection.probability', 'bottommost_detection.probability',
+			'largest_detection.probability', 'smallest_detection.probability',
+			'highest_conf_detection.probability'
+		];
+	}
+
+	function persistUserVars(vars) {
+		var builtinKeys = getBuiltinKeys();
+		for (var key in vars) {
+			if (vars.hasOwnProperty(key) && builtinKeys.indexOf(key) === -1) persistentVars[key] = vars[key];
+		}
+	}
+
+	function handleScriptResults(results) {
+		if (results.output && results.output.length > 0) {
+			for (var i = 0; i < results.output.length; i++) appendOutput(results.output[i]);
+		}
+		if (results.showTextCommands && results.showTextCommands.length > 0) {
+			var lastCmd = results.showTextCommands[results.showTextCommands.length - 1];
+			showTextOnVideo(lastCmd.message, lastCmd.style);
+		} else { clearTextOverlay(); }
+	}
+
+	async function gameStep() {
+		if (!gameRunning || gameStepRunning) return;
+		gameStepRunning = true;
+		var detections = await safeRunDetection();
+		drawGameDetections(detections);
+		updateCachedParsed();
 		var vars = buildDSLContext(detections);
-
 		try {
 			var results = interpretScript(cachedParsed, vars);
-
-			// Persist user variables
-			var builtinKeys = [
-				'detection_count',
-				'leftmost_detection', 'rightmost_detection',
-				'topmost_detection', 'bottommost_detection',
-				'largest_detection', 'smallest_detection',
-				'highest_conf_detection',
-				'leftmost_detection.probability', 'rightmost_detection.probability',
-				'topmost_detection.probability', 'bottommost_detection.probability',
-				'largest_detection.probability', 'smallest_detection.probability',
-				'highest_conf_detection.probability'
-			];
-			for (var key in vars) {
-				if (vars.hasOwnProperty(key) && builtinKeys.indexOf(key) === -1) {
-					persistentVars[key] = vars[key];
-				}
-			}
-
-			if (results.output && results.output.length > 0) {
-				for (var i = 0; i < results.output.length; i++) {
-					appendOutput(results.output[i]);
-				}
-			}
-
-			if (results.showTextCommands && results.showTextCommands.length > 0) {
-				var lastCmd = results.showTextCommands[results.showTextCommands.length - 1];
-				showTextOnVideo(lastCmd.message, lastCmd.style);
-			} else {
-				clearTextOverlay();
-			}
+			persistUserVars(vars);
+			handleScriptResults(results);
 		} catch (e) {
 			appendOutput("FEHLER: " + (e.message || "Unbekannter Fehler"));
 			clearTextOverlay();
 		}
-
 		setStatus('Läuft | Erkennungen: ' + detections.length);
 		gameStepRunning = false;
 	}
 
-	// ─── Auto-start: triggered by model selection ───────────────────────
-	async function autoStart(modelUuid) {
-		// Always stop previous loop
+	async function safeRunDetection() {
+		if (!gameModel || !webcamStream || video.readyState < 2) return [];
+		try { return await runDetection(); }
+		catch (e) { return []; }
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// AUTO-START & EVENT BINDINGS
+	// ═══════════════════════════════════════════════════════════════════════
+
+	function resetGameState() {
 		gameRunning = false;
-		if (gameInterval) {
-			clearInterval(gameInterval);
-			gameInterval = null;
-		}
+		if (gameInterval) { clearTimeout(gameInterval); gameInterval = null; }
 		gameStepRunning = false;
 		persistentVars = {};
 		cachedParsed = null;
 		lastCode = '';
+	}
 
-		if (modelUuid === 'none') {
-			stopGameWebcam();
-			if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-			clearTextOverlay();
-			setStatus('Wähle ein Modell zum Starten');
-			return;
-		}
+	function handleNoModel() {
+		stopGameWebcam();
+		if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+		clearTextOverlay();
+		setStatus('Wähle ein Modell zum Starten');
+	}
 
-		setStatus('Kamera wird gestartet...');
-		var webcamOk = await startGameWebcam();
-		if (!webcamOk) {
-			setStatus('Kamera-Fehler');
-			return;
-		}
-
-		setStatus('Modell wird geladen...');
-		var modelOk = await loadGameModel(modelUuid);
-		if (!modelOk) {
-			setStatus('Modell-Fehler');
-			return;
-		}
-
+	async function startGameLoop() {
 		gameRunning = true;
 		var fps = parseInt(document.getElementById('game_fps').value) || 3;
 		setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
 		appendOutput("🎮 Spiel läuft!");
+		scheduleNextStep();
+	}
 
-		// Sequential async loop — prevents overlapping inference calls
-		(async function gameLoop() {
-			if (!gameRunning) return;
-			var targetDelay = Math.round(1000 / (parseInt(document.getElementById('game_fps').value) || 3));
-			var start = performance.now();
+	async function scheduleNextStep() {
+		if (!gameRunning) return;
+		var start = performance.now();
+		await gameStep();
+		var elapsed = performance.now() - start;
+		var wait = Math.max(0, getTargetDelay() - elapsed);
+		if (gameRunning) gameInterval = setTimeout(scheduleNextStep, wait);
+	}
 
-			await gameStep();
-
-			var elapsed = performance.now() - start;
-			var wait = Math.max(0, targetDelay - elapsed);
-
-			if (gameRunning) {
-				gameInterval = setTimeout(gameLoop, wait);
-			}
-		})();
+	async function autoStart(modelUuid) {
+		resetGameState();
+		if (modelUuid === 'none') { handleNoModel(); return; }
+		setStatus('Kamera wird gestartet...');
+		if (!await startGameWebcam()) { setStatus('Kamera-Fehler'); return; }
+		setStatus('Modell wird geladen...');
+		if (!await loadGameModel(modelUuid)) { setStatus('Modell-Fehler'); return; }
+		startGameLoop();
 	}
 
 	// ─── Model select change ────────────────────────────────────────────
-	var modelSelect = document.getElementById('game_model_select');
-	if (modelSelect) {
-		modelSelect.addEventListener('change', function() {
-			autoStart(this.value);
-		});
+
+	function bindModelSelect() {
+		var modelSelect = document.getElementById('game_model_select');
+		if (modelSelect) modelSelect.addEventListener('change', function () { autoStart(this.value); });
 	}
+	bindModelSelect();
 
 	// ─── Camera change ──────────────────────────────────────────────────
-	var cameraSelect = document.getElementById('game_camera_select');
-	if (cameraSelect) {
-		cameraSelect.addEventListener('change', function() {
+
+	function bindCameraSelect() {
+		var cameraSelect = document.getElementById('game_camera_select');
+		if (!cameraSelect) return;
+		cameraSelect.addEventListener('change', function () {
 			var modelUuid = document.getElementById('game_model_select').value;
 			if (modelUuid === 'none') return;
-
-			// Stop everything cleanly
-			gameRunning = false;
-
-			if (gameInterval) {
-				clearTimeout(gameInterval);  // ← changed from clearInterval
-				gameInterval = null;
-			}
-
-			if (animFrameId) {
-				cancelAnimationFrame(animFrameId);
-				animFrameId = null;
-			}
-
+			resetGameState();
+			if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
 			stopGameWebcam();
 			autoStart(modelUuid);
 		});
 	}
+	bindCameraSelect();
 
 	// ─── Confidence slider ──────────────────────────────────────────────
-	var gameConfSlider = document.getElementById('game_conf_slider');
-	if (gameConfSlider) {
-		gameConfSlider.addEventListener('input', function() {
+
+	function bindConfSlider() {
+		var slider = document.getElementById('game_conf_slider');
+		if (!slider) return;
+		slider.addEventListener('input', function () {
 			var display = document.getElementById('game_conf_value');
 			if (display) display.textContent = parseFloat(this.value).toFixed(2);
 		});
 	}
+	bindConfSlider();
 
 	// ─── FPS hot-swap ───────────────────────────────────────────────────
-	var gameFpsInput = document.getElementById('game_fps');
-	if (gameFpsInput) {
-		gameFpsInput.addEventListener('input', function() {
+
+	function bindFpsInput() {
+		var fpsInput = document.getElementById('game_fps');
+		if (!fpsInput) return;
+		fpsInput.addEventListener('input', function () {
 			if (!gameRunning) return;
-			// The new gameLoop reads fps dynamically each iteration,
-			// so no restart needed — just update the status display.
 			var fps = Math.max(1, Math.min(10, parseInt(this.value) || 3));
 			setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
 		});
 	}
+	bindFpsInput();
 
 	// ─── Button bindings ────────────────────────────────────────────────
-	var btnClearOutput = document.getElementById('btn_clear_output');
-	if (btnClearOutput) btnClearOutput.addEventListener('click', clearOutput);
 
-	var btnShowCode = document.getElementById('btn_show_code');
-	if (btnShowCode) {
-		btnShowCode.addEventListener('click', function() {
+	function bindClearOutput() {
+		var btn = document.getElementById('btn_clear_output');
+		if (btn) btn.addEventListener('click', clearOutput);
+	}
+	bindClearOutput();
+
+	function bindShowCode() {
+		var btn = document.getElementById('btn_show_code');
+		if (!btn) return;
+		btn.addEventListener('click', function () {
 			var code = editor.value || '(kein Programm)';
 			var previewContent = document.getElementById('code_preview_content');
 			var modal = document.getElementById('code_preview_modal');
@@ -1299,187 +1328,194 @@
 			if (modal) modal.classList.add('visible');
 		});
 	}
+	bindShowCode();
 
-	// ═══════════════════════════════════════════════════════════════
-	// BEISPIEL-GALERIE — Ersetzt den alten rotierenden Button
-	// ═══════════════════════════════════════════════════════════════
+	// ═══════════════════════════════════════════════════════════════════════
+	// EXAMPLE GALLERY
+	// ═══════════════════════════════════════════════════════════════════════
 
-	function getExamplePrograms() {
-		var l1 = (gameLabels && gameLabels.length >= 1) ? gameLabels[0] : 'ObjektA';
-		var l2 = (gameLabels && gameLabels.length >= 2) ? gameLabels[1] : 'ObjektB';
-		var l3 = (gameLabels && gameLabels.length >= 3) ? gameLabels[2] : 'ObjektC';
+	function getLabelsForExamples() {
+		return {
+			l1: (gameLabels && gameLabels.length >= 1) ? gameLabels[0] : 'ObjektA',
+			l2: (gameLabels && gameLabels.length >= 2) ? gameLabels[1] : 'ObjektB',
+			l3: (gameLabels && gameLabels.length >= 3) ?
+			l3: (gameLabels && gameLabels.length >= 3) ? gameLabels[2] : 'ObjektC'
+		};
+	}
 
+	function buildRPSExample(l) {
+		return '# ══ SCHERE STEIN PAPIER ══\n' +
+			'# Regeln: Schere schneidet Papier,\n' +
+			'# Papier wickelt Stein ein,\n' +
+			'# Stein macht Schere kaputt.\n' +
+			'spieler = leftmost_detection\n' +
+			'gegner = rightmost_detection\n' +
+			'if detection_count ist kleiner als 2\n' +
+			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
+			'elif spieler ist gleich gegner\n' +
+			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
+			'elif spieler ist gleich "' + l.l1 + '" and gegner ist gleich "' + l.l3 + '"\n' +
+			'  siege += 1\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
+			'elif spieler ist gleich "' + l.l3 + '" and gegner ist gleich "' + l.l2 + '"\n' +
+			'  siege += 1\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
+			'elif spieler ist gleich "' + l.l2 + '" and gegner ist gleich "' + l.l1 + '"\n' +
+			'  siege += 1\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
+			'else\n' +
+			'  niederlagen += 1\n' +
+			'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + gegner + " schlägt " + spieler loser\n';
+	}
+
+	function buildCounterExample() {
+		return '# ══ REKORD-JÄGER ══\n' +
+			'aktuell = detection_count\n' +
+			'if aktuell > rekord\n' +
+			'  rekord = aktuell\n' +
+			'if aktuell > 0\n' +
+			'  gesamt += aktuell\n' +
+			'if aktuell == 0\n' +
+			'  show_text "🔍 Zeige Objekte! Rekord: " + rekord normal\n' +
+			'elif aktuell == rekord\n' +
+			'  show_text "🏆 NEUER REKORD! " + rekord + " Objekte!" winner\n' +
+			'else\n' +
+			'  show_text "👀 Erkannt: " + aktuell + " | Rekord: " + rekord normal\n';
+	}
+
+	function buildCollectExample() {
+		return '# ══ SAMMEL-CHALLENGE ══\n' +
+			'aktuell = highest_conf_detection\n' +
+			'if aktuell == "none"\n' +
+			'  show_text "🎯 Zeige ein Objekt! Punkte: " + punkte normal\n' +
+			'elif aktuell != letztes\n' +
+			'  punkte += 10\n' +
+			'  streak += 1\n' +
+			'  bonus = streak * 5\n' +
+			'  punkte += bonus\n' +
+			'  letztes = aktuell\n' +
+			'  show_text "✅ " + aktuell + "! +" + (10 + bonus) + " Pkt | Streak: " + streak + "x" winner\n' +
+			'else\n' +
+			'  streak = 0\n' +
+			'  show_text "🔄 Schon gezeigt! Wechsle! Punkte: " + punkte draw\n';
+	}
+
+	function buildExampleMeta(l) {
 		return [
-			{
-				id: 'rps',
-				name: '✊✌️✋ Schere Stein Papier',
-				icon: '✊',
-				difficulty: '⭐',
-				description: 'Spiele gegen einen Freund! Haltet beide eure Hände in die Kamera.',
-				preview: '👈 Spieler 1 | Spieler 2 👉',
-				color: '#4fc3f7',
-				code:
-				'# ══ SCHERE STEIN PAPIER ══\n' +
-				'# Regeln: Schere schneidet Papier,\n' +
-				'# Papier wickelt Stein ein,\n' +
-				'# Stein macht Schere kaputt.\n' +
-				'spieler = leftmost_detection\n' +
-				'gegner = rightmost_detection\n' +
-				'if detection_count ist kleiner als 2\n' +
-				'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
-				'elif spieler ist gleich gegner\n' +
-				'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
-				'elif spieler ist gleich "' + l1 + '" and gegner ist gleich "' + l3 + '"\n' +
-				'  siege += 1\n' +
-				'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-				'elif spieler ist gleich "' + l3 + '" and gegner ist gleich "' + l2 + '"\n' +
-				'  siege += 1\n' +
-				'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-				'elif spieler ist gleich "' + l2 + '" and gegner ist gleich "' + l1 + '"\n' +
-				'  siege += 1\n' +
-				'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-				'else\n' +
-				'  niederlagen += 1\n' +
-				'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + gegner + " schlägt " + spieler loser\n'
-			},
-			{
-				id: 'counter',
-				name: '📊 Rekord-Jäger',
-				icon: '🏆',
-				difficulty: '⭐',
-				description: 'Wie viele Objekte kannst du gleichzeitig zeigen? Jage den Rekord!',
-				preview: '🏆 Zeige so viele Objekte wie möglich!',
-				color: '#ffb74d',
-				code:
-				'# ══ REKORD-JÄGER ══\n' +
-				'aktuell = detection_count\n' +
-				'if aktuell > rekord\n' +
-				'  rekord = aktuell\n' +
-				'if aktuell > 0\n' +
-				'  gesamt += aktuell\n' +
-				'if aktuell == 0\n' +
-				'  show_text "🔍 Zeige Objekte! Rekord: " + rekord normal\n' +
-				'elif aktuell == rekord\n' +
-				'  show_text "🏆 NEUER REKORD! " + rekord + " Objekte!" winner\n' +
-				'else\n' +
-				'  show_text "👀 Erkannt: " + aktuell + " | Rekord: " + rekord normal\n'
-			},
-			{
-				id: 'collect',
-				name: '🎯 Sammel-Challenge',
-				icon: '🎯',
-				difficulty: '⭐⭐',
-				description: 'Zeige verschiedene Objekte nacheinander! Gleiches Objekt zweimal = keine Punkte!',
-				preview: '🔄 Immer wechseln für Punkte!',
-				color: '#66bb6a',
-				code:
-				'# ══ SAMMEL-CHALLENGE ══\n' +
-				'aktuell = highest_conf_detection\n' +
-				'if aktuell == "none"\n' +
-				'  show_text "🎯 Zeige ein Objekt! Punkte: " + punkte normal\n' +
-				'elif aktuell != letztes\n' +
-				'  punkte += 10\n' +
-				'  streak += 1\n' +
-				'  bonus = streak * 5\n' +
-				'  punkte += bonus\n' +
-				'  letztes = aktuell\n' +
-				'  show_text "✅ " + aktuell + "! +" + (10 + bonus) + " Pkt | Streak: " + streak + "x" winner\n' +
-				'else\n' +
-				'  streak = 0\n' +
-				'  show_text "🔄 Schon gezeigt! Wechsle! Punkte: " + punkte draw\n'
-			}
+			{ id: 'rps', name: '✊✌️✋ Schere Stein Papier', icon: '✊', difficulty: '⭐', description: 'Spiele gegen einen Freund! Haltet beide eure Hände in die Kamera.', preview: '👈 Spieler 1 | Spieler 2 👉', color: '#4fc3f7', code: buildRPSExample(l) },
+			{ id: 'counter', name: '📊 Rekord-Jäger', icon: '🏆', difficulty: '⭐', description: 'Wie viele Objekte kannst du gleichzeitig zeigen? Jage den Rekord!', preview: '🏆 Zeige so viele Objekte wie möglich!', color: '#ffb74d', code: buildCounterExample() },
+			{ id: 'collect', name: '🎯 Sammel-Challenge', icon: '🎯', difficulty: '⭐⭐', description: 'Zeige verschiedene Objekte nacheinander! Gleiches Objekt zweimal = keine Punkte!', preview: '🔄 Immer wechseln für Punkte!', color: '#66bb6a', code: buildCollectExample() }
 		];
 	}
 
+	function getExamplePrograms() {
+		return buildExampleMeta(getLabelsForExamples());
+	}
+
 	// ─── Galerie rendern ────────────────────────────────────────────────
+
+	function buildCardHTML(ex) {
+		return '<div class="example-card-icon" style="background:' + ex.color + '22; color:' + ex.color + '">' +
+			'<span class="example-big-icon">' + ex.icon + '</span>' +
+			'</div>' +
+			'<div class="example-card-body">' +
+			'<h3>' + ex.name + '</h3>' +
+			'<div class="example-difficulty">' + ex.difficulty + '</div>' +
+			'<p>' + ex.description + '</p>' +
+			'<div class="example-preview">' + ex.preview + '</div>' +
+			'</div>';
+	}
+
+	function createExampleCard(ex) {
+		var card = document.createElement('div');
+		card.className = 'example-card';
+		card.style.borderColor = ex.color;
+		card.innerHTML = buildCardHTML(ex);
+		card.addEventListener('click', function () { loadExample(ex); });
+		return card;
+	}
+
+	function loadExample(ex) {
+		if (typeof window.loadCodeToBlocks === 'function') {
+			window.loadCodeToBlocks(ex.code);
+		} else {
+			editor.value = ex.code;
+		}
+		persistentVars = {};
+		clearOutput();
+		appendOutput("🎮 " + ex.name + " geladen!");
+		appendOutput("   " + ex.description);
+		closeGalleryModal();
+		showConfetti();
+	}
+
+	function closeGalleryModal() {
+		var modal = document.getElementById('example_gallery_modal');
+		if (modal) modal.classList.remove('visible');
+	}
+
 	function renderExampleGallery() {
 		var container = document.getElementById('example_cards_container');
 		if (!container) return;
 		container.innerHTML = '';
-
 		var examples = getExamplePrograms();
-
-		for (var i = 0; i < examples.length; i++) {
-			(function(ex, index) {
-				var card = document.createElement('div');
-				card.className = 'example-card';
-				card.style.borderColor = ex.color;
-
-				card.innerHTML =
-					'<div class="example-card-icon" style="background:' + ex.color + '22; color:' + ex.color + '">' +
-					'<span class="example-big-icon">' + ex.icon + '</span>' +
-					'</div>' +
-					'<div class="example-card-body">' +
-					'<h3>' + ex.name + '</h3>' +
-					'<div class="example-difficulty">' + ex.difficulty + '</div>' +
-					'<p>' + ex.description + '</p>' +
-					'<div class="example-preview">' + ex.preview + '</div>' +
-					'</div>';
-
-				card.addEventListener('click', function() {
-					if (typeof window.loadCodeToBlocks === 'function') {
-						window.loadCodeToBlocks(ex.code);
-					} else {
-						editor.value = ex.code;
-					}
-					persistentVars = {}; // Reset variables
-					clearOutput();
-					appendOutput("🎮 " + ex.name + " geladen!");
-					appendOutput("   " + ex.description);
-					document.getElementById('example_gallery_modal').classList.remove('visible');
-
-					// Confetti effect
-					showConfetti();
-				});
-
-				container.appendChild(card);
-			})(examples[i], i);
-		}
+		for (var i = 0; i < examples.length; i++) container.appendChild(createExampleCard(examples[i]));
 	}
 
 	// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
-	function showConfetti() {
+
+	function getRandomEmoji() {
 		var emojis = ['🎉', '⭐', '🎮', '🚀', '✨', '💫'];
-		for (var i = 0; i < 12; i++) {
-			(function(delay) {
-				setTimeout(function() {
-					var particle = document.createElement('div');
-					particle.className = 'confetti-particle';
-					particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-					particle.style.left = (Math.random() * 100) + '%';
-					particle.style.animationDuration = (1 + Math.random() * 2) + 's';
-					document.getElementById('game_editor_page').appendChild(particle);
-					setTimeout(function() { particle.remove(); }, 3000);
-				}, delay * 80);
-			})(i);
-		}
+		return emojis[Math.floor(Math.random() * emojis.length)];
+	}
+
+	function createConfettiParticle() {
+		var particle = document.createElement('div');
+		particle.className = 'confetti-particle';
+		particle.textContent = getRandomEmoji();
+		particle.style.left = (Math.random() * 100) + '%';
+		particle.style.animationDuration = (1 + Math.random() * 2) + 's';
+		return particle;
+	}
+
+	function spawnConfettiParticle(delay) {
+		setTimeout(function () {
+			var particle = createConfettiParticle();
+			document.getElementById('game_editor_page').appendChild(particle);
+			setTimeout(function () { particle.remove(); }, 3000);
+		}, delay * 80);
+	}
+
+	function showConfetti() {
+		for (var i = 0; i < 12; i++) spawnConfettiParticle(i);
 	}
 
 	// ─── Button-Binding für Galerie ─────────────────────────────────────
-	var btnShowExamples = document.getElementById('btn_show_examples');
-	if (btnShowExamples) {
-		btnShowExamples.addEventListener('click', function() {
-			renderExampleGallery();
-			document.getElementById('example_gallery_modal').classList.add('visible');
-		});
+
+	function openGallery() {
+		renderExampleGallery();
+		var modal = document.getElementById('example_gallery_modal');
+		if (modal) modal.classList.add('visible');
 	}
 
-	// KEEP the old btn_load_example as fallback, but also make it open gallery:
-	var btnLoadExample = document.getElementById('btn_load_example');
-	if (btnLoadExample) {
-		btnLoadExample.addEventListener('click', function() {
-			renderExampleGallery();
-			document.getElementById('example_gallery_modal').classList.add('visible');
-		});
+	function bindGalleryButtons() {
+		var btnShowExamples = document.getElementById('btn_show_examples');
+		if (btnShowExamples) btnShowExamples.addEventListener('click', openGallery);
+		var btnLoadExample = document.getElementById('btn_load_example');
+		if (btnLoadExample) btnLoadExample.addEventListener('click', openGallery);
 	}
-
-
+	bindGalleryButtons();
 
 	// ─── Cleanup on unload ──────────────────────────────────────────────
-	window.addEventListener('beforeunload', function() {
+
+	function cleanup() {
 		gameRunning = false;
 		if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+		if (gameInterval) { clearTimeout(gameInterval); gameInterval = null; }
 		stopGameWebcam();
-		if (gameModel) try { gameModel.dispose(); } catch (e) {}
-	});
+		if (gameModel) try { gameModel.dispose(); } catch (e) { }
+	}
+
+	window.addEventListener('beforeunload', cleanup);
+
 })();
