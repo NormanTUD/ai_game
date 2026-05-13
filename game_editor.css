@@ -2327,3 +2327,24 @@ button:active {
 .workspace-block.cat-celebrations:hover {
     box-shadow: 0 2px 12px rgba(255, 215, 64, 0.4);
 }
+
+
+#game_editor_page.game-running *,
+#game_editor_page.game-running *::before,
+#game_editor_page.game-running *::after {
+    animation-play-state: paused !important;
+}
+
+/* Keep only essential animations running */
+#game_editor_page.game-running #celebration_overlay *,
+#game_editor_page.game-running #game_text_overlay {
+    animation-play-state: running !important;
+}
+
+#game_overlay_canvas {
+    will-change: contents;
+}
+
+#game_video {
+    will-change: transform; /* promotes to own layer */
+}

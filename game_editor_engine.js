@@ -356,10 +356,13 @@
 		return kept;
 	}
 
-	function createInputTensor(shape) {
-		return tf.tidy(function () {
-			return tf.browser.fromPixels(video).resizeBilinear([shape[0], shape[1]]).div(255).expandDims();
-		});
+	async function createInputTensor(shape) {
+		const pixels = await tf.browser.fromPixelsAsync(video);
+		try {
+			return tf.tidy(() => pixels.resizeBilinear([shape[0], shape[1]]).div(255).expandDims());
+		} finally {
+			pixels.dispose();
+		}
 	}
 
 	function disposeOutput(output) {
@@ -394,7 +397,7 @@
 		var confThreshold = getGameConfThreshold();
 		var inputTensor = null, output = null;
 
-		try { inputTensor = createInputTensor(shape); }
+		try { inputTensor = await createInputTensor(shape); }
 		catch (e) { if (inputTensor) try { inputTensor.dispose(); } catch (x) { } return []; }
 
 		try { output = gameModel.execute(inputTensor); }
@@ -419,25 +422,33 @@
 	}
 
 	async function extractBoxesAndScores(res) {
-		var rawTensor = tf.tensor3d(res);
-		var transposed = transposeIfNeeded(rawTensor);
-		var nc = transposed.features - 4;
-		if (nc <= 0) { rawTensor.dispose(); return null; }
+		const { boxesTensor, scoresTensor, numClasses } = tf.tidy(() => {
+			const raw = tf.tensor3d(res);
+			const s = raw.shape;
+			const transposed = s[1] > s[2] ? raw.transpose([0, 2, 1]) : raw;
+			const nc = (s[1] > s[2] ? s[2] : s[1]) - 4;
+			if (nc <= 0) return { boxesTensor: null, scoresTensor: null, numClasses: 0 };
 
-		var predTensor = transposed.tensor.transpose([0, 2, 1]);
-		var splits = tf.split(predTensor, [4, nc], 2);
+			const pred = transposed.transpose([0, 2, 1]);
+			const [b, sc] = tf.split(pred, [4, nc], 2);
+			return {
+				boxesTensor: b.squeeze(),
+				scoresTensor: sc.squeeze(),
+				numClasses: nc
+			};
+		});
 
-		var boxes = await splits[0].squeeze().array();   // async!
-		var scores = await splits[1].squeeze().array();   // async!
+		if (!boxesTensor) return null;
 
-		// Dispose all tensors
-		rawTensor.dispose();
-		transposed.tensor.dispose();
-		predTensor.dispose();
-		splits[0].dispose();
-		splits[1].dispose();
+		// Single parallel download instead of sequential
+		const [boxes, scores] = await Promise.all([
+			boxesTensor.array(),
+			scoresTensor.array()
+		]);
+		boxesTensor.dispose();
+		scoresTensor.dispose();
 
-		return { boxes: boxes, scores: scores, numClasses: nc };
+		return { boxes, scores, numClasses };
 	}
 
 	function isValidOutput(res) {
@@ -1234,25 +1245,25 @@
 		if (!gameRunning || gameStepRunning) return;
 		gameStepRunning = true;
 
-		// Run detection (heavy work)
 		var detections = await safeRunDetection();
 
-		// Schedule drawing on the NEXT animation frame so the browser
-		// can run CSS animations / celebration canvas smoothly
-		requestAnimationFrame(function() {
-			drawGameDetections(detections);
-			updateCachedParsed();
-			var vars = buildDSLContext(detections);
-			try {
-				var results = interpretScript(cachedParsed, vars);
-				persistUserVars(vars);
-				handleScriptResults(results);
-			} catch (e) {
-				appendOutput("FEHLER: " + (e.message || "Unbekannter Fehler"));
-				clearTextOverlay();
-			}
-			setStatus('Läuft | Erkennungen: ' + detections.length);
-			gameStepRunning = false;
+		return new Promise(function(resolve) {
+			requestAnimationFrame(function() {
+				drawGameDetections(detections);
+				updateCachedParsed();
+				var vars = buildDSLContext(detections);
+				try {
+					var results = interpretScript(cachedParsed, vars);
+					persistUserVars(vars);
+					handleScriptResults(results);
+				} catch (e) {
+					appendOutput("FEHLER: " + (e.message || "Unbekannter Fehler"));
+					clearTextOverlay();
+				}
+				setStatus('Läuft | Erkennungen: ' + detections.length);
+				gameStepRunning = false;
+				resolve();
+			});
 		});
 	}
 
@@ -1267,6 +1278,7 @@
 	// ═══════════════════════════════════════════════════════════════════════
 
 	function resetGameState() {
+		document.getElementById('game_editor_page').classList.remove('game-running');
 		gameRunning = false;
 		if (gameInterval) { clearTimeout(gameInterval); gameInterval = null; }
 		gameStepRunning = false;
@@ -1283,6 +1295,7 @@
 	}
 
 	async function startGameLoop() {
+		document.getElementById('game_editor_page').classList.add('game-running');
 		gameRunning = true;
 		var fps = parseInt(document.getElementById('game_fps').value) || 3;
 		setStatus('Spiel läuft mit ' + fps + ' Auswertungen/Sek');
