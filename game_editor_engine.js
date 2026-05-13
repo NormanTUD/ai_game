@@ -1338,7 +1338,6 @@
 		return {
 			l1: (gameLabels && gameLabels.length >= 1) ? gameLabels[0] : 'ObjektA',
 			l2: (gameLabels && gameLabels.length >= 2) ? gameLabels[1] : 'ObjektB',
-			l3: (gameLabels && gameLabels.length >= 3) ?
 			l3: (gameLabels && gameLabels.length >= 3) ? gameLabels[2] : 'ObjektC'
 		};
 	}
