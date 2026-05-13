@@ -276,11 +276,31 @@
 	var btnPlaceholderExamples = document.getElementById('btn_placeholder_examples');
 	if (btnPlaceholderExamples) {
 		btnPlaceholderExamples.addEventListener('click', function() {
-			// Directly open gallery instead of clicking a potentially hidden button
-			openGallery();
+			if (typeof window.openGallery === 'function') {
+				window.openGallery();
+			} else {
+				// Fallback: directly manipulate modal
+				var modal = document.getElementById('example_gallery_modal');
+				if (modal) modal.classList.add('visible');
+			}
 			playSound('click');
 		});
 	}
+
+	// ─── Small examples button in editor header (FIX #10) ──────────────
+	var btnShowExamplesSmall = document.getElementById('btn_show_examples_small');
+	if (btnShowExamplesSmall) {
+		btnShowExamplesSmall.addEventListener('click', function() {
+			if (typeof window.openGallery === 'function') {
+				window.openGallery();
+			} else {
+				var modal = document.getElementById('example_gallery_modal');
+				if (modal) modal.classList.add('visible');
+			}
+			playSound('click');
+		});
+	}
+
 
 
 	// ─── Undo System (simple) ───────────────────────────────────────────

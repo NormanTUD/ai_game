@@ -1574,7 +1574,12 @@
 	function openGallery() {
 		renderExampleGallery();
 		var modal = document.getElementById('example_gallery_modal');
-		if (modal) modal.classList.add('visible');
+		if (modal) {
+			// FIX #2 & #3: Force modal above everything regardless of game-running state
+			modal.style.zIndex = '99999';
+			modal.style.pointerEvents = 'auto';
+			modal.classList.add('visible');
+		}
 	}
 
 	function bindGalleryButtons() {
@@ -1582,6 +1587,9 @@
 		if (btnShowExamples) btnShowExamples.addEventListener('click', openGallery);
 		var btnLoadExample = document.getElementById('btn_load_example');
 		if (btnLoadExample) btnLoadExample.addEventListener('click', openGallery);
+		// FIX #10: Also bind the small button in editor panel
+		var btnSmall = document.getElementById('btn_show_examples_small');
+		if (btnSmall) btnSmall.addEventListener('click', openGallery);
 	}
 	bindGalleryButtons();
 

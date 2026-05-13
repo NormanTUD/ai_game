@@ -2449,3 +2449,33 @@ button:active {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* FIX: Ensure gallery modal is ALWAYS on top, even during game-running */
+#example_gallery_modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99999 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+#example_gallery_modal.visible {
+    opacity: 1;
+    pointer-events: auto !important;
+}
+
+/* Ensure game-running class doesn't override modal */
+.game-running #example_gallery_modal.visible {
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 99999 !important;
+}
