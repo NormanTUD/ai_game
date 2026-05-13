@@ -1596,10 +1596,11 @@
 	}
 
 	window.addEventListener('beforeunload', cleanup);
+	window.openGallery = openGallery;
 
 })();
 
-		// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
+// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
 
 function showConfetti() {
     if (typeof window.celebrate === 'function') {
