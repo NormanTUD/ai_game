@@ -19,6 +19,8 @@ mkdir -p "$output_dir_host" || { echo "Cannot create output directory $output_di
 if command -v yolo &> /dev/null; then
     uuid=$(uuidgen)
 
+    chmod -R a+rw /usr/local/lib/python3.11/site-packages/onnx2tf/ 2>/dev/null || true
+
     cd $output_dir_host
 
     copied_model_file="$output_dir_host/$uuid.pt"
