@@ -42,8 +42,8 @@ else
     echo "Local YOLO not found, using Docker..."
     dockerfile_path="$output_dir_host/Dockerfile"
 
-	bash check_docker_group_current_user
-	[[ $? -ne 0 ]] && { echo "check_docker_group_current_user failed"; exit 1; }
+	#bash check_docker_group_current_user
+	#[[ $? -ne 0 ]] && { echo "check_docker_group_current_user failed"; exit 1; }
 
     cat > "$dockerfile_path" <<EOF
 FROM python:3.11-slim
