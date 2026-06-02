@@ -7,7 +7,7 @@ services:
       - MYSQL_ROOT_PASSWORD=root
       - MYSQL_ROOT_HOST=%
     volumes:
-      - /home/norman/asddd:/var/lib/mysql
+      - /home/s3811141/annotate_db:/var/lib/mysql
       - ./my.cnf:/etc/mysql/conf.d/disable_locks.cnf:ro
     networks:
       - annotate_network
@@ -29,7 +29,7 @@ services:
     networks:
       - annotate_network
     ports:
-      - 9911:8080
+      - 1111:8080
     tmpfs:
       - /tmp:rw
     volumes:

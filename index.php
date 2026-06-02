@@ -120,9 +120,6 @@
                         ⬅️ Ziehe Blöcke von links hierher<br>
                         oder klicke auf <strong>🎮 Spiele-Galerie</strong>
                     </span>
-                    <button id="btn_placeholder_examples" class="placeholder-btn">
-                        🎲 Fertiges Spiel laden
-                    </button>
                 </div>
             </div>
 
