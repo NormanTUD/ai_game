@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# last working python-version: 3.11
+
+model_file=$1
+output_dir_host=$2
+
+if [[ -z "$model_file" || -z "$output_dir_host" ]]; then
+    echo "Usage: $0 <model_file> <output_dir>"
+    exit 1
+fi
+
+model_file=$(realpath "$model_file")
+[[ ! -f "$model_file" ]] && { echo "Model file $model_file does not exist."; exit 1; }
+
+output_dir_host=$(realpath "$output_dir_host")
+mkdir -p "$output_dir_host" || { echo "Cannot create output directory $output_dir_host"; exit 1; }
+
+if command -v yolo &> /dev/null; then
+    uuid=$(uuidgen)
+
+    cd $output_dir_host
+
+    copied_model_file="$output_dir_host/$uuid.pt"
+
+    if [[ -e $model_file ]]; then
+	#echo "Copying $model_file to $copied_model_file"
+	cp "$model_file" "$copied_model_file"
+    fi
+
+    #echo "yolo export model=\"$copied_model_file\" format=tfjs"
+    yolo export model="$copied_model_file" format=tfjs
+
+    web_model_dir="$output_dir_host/${uuid}_web_model/"
+
+    if [[ ! -d $web_model_dir ]]; then
+	    echo "Cannot find files under >$web_model_dir< (web_model_dir: $web_model_dir, output_dir_host: $output_dir_host, output_dir_host: $output_dir_host)"
+    fi
+else
+    echo "Local YOLO not found, using Docker..."
+    dockerfile_path="$output_dir_host/Dockerfile"
+
+	bash check_docker_group_current_user
+	[[ $? -ne 0 ]] && { echo "check_docker_group_current_user failed"; exit 1; }
+
+    cat > "$dockerfile_path" <<EOF
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl libgl1 libglib2.0-0 git vim && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --upgrade pip
+RUN python -m pip install --no-cache-dir --progress-bar=off tensorflowjs==4.7.0 ultralytics 'sng4onnx>=1.0.1' 'onnx_graphsurgeon>=0.3.26' 'ai-edge-litert>=1.2.0' 'onnx>=1.12.0,<=1.19.1' 'onnx2tf>=1.26.3' 'onnxslim>=0.1.71' onnxruntime jax protobuf==5.29.6 tensorflow==2.16.1 onnx2tf<=1.26.3
+RUN sed -i 's|from jax.experimental.jax2tf import shape_poly|from jax._src.export import shape_poly|' /usr/local/lib/python3.11/site-packages/tensorflowjs/converters/jax_conversion.py
+WORKDIR /app
+EOF
+
+    image_tag="yolo_tfjs_temp:latest"
+    docker build -t "$image_tag" -f "$dockerfile_path" "$output_dir_host" || { echo "Docker build failed"; exit 1; }
+
+    docker run --rm \
+      -v "$output_dir_host":/app/output \
+      -v "$(dirname "$model_file")":/app/models \
+      "$image_tag" /bin/bash -c "
+      set -e
+      cd /app
+      model_filename=\"$(basename "$model_file")\"
+      yolo export model=/app/models/\$model_filename format=tfjs
+      cp -r \"/app/models/\${model_filename%.pt}_web_model\" /app/output/
+    "
+fi
+
+exit 0
