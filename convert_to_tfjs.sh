@@ -49,9 +49,14 @@ else
 FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl libgl1 libglib2.0-0 git vim && rm -rf /var/lib/apt/lists/*
 RUN python -m pip install --upgrade pip
-RUN python -m pip install --no-cache-dir --progress-bar=off 'tensorflow>=2.18.0,<2.19.0' 'protobuf>=5.26.0,<6.0.0'
-RUN python -m pip install --no-cache-dir --progress-bar=off 'tensorflowjs>=4.22.0' ultralytics 'sng4onnx>=1.0.1' 'onnx_graphsurgeon>=0.3.26' 'ai-edge-litert>=1.2.0' 'onnx>=1.12.0,<=1.19.1' 'onnx2tf>=1.26.3' 'onnxslim>=0.1.71' onnxruntime jax
+RUN python -m pip install --no-cache-dir --progress-bar=off tensorflowjs==4.7.0 ultralytics 'sng4onnx>=1.0.1' 'onnx_graphsurgeon>=0.3.26' 'ai-edge-litert>=1.2.0' 'onnx>=1.12.0,<=1.19.1' 'onnx2tf>=1.26.3' 'onnxslim>=0.1.71' onnxruntime jax protobuf==5.29.6
 RUN sed -i 's|from jax.experimental.jax2tf import shape_poly|from jax._src.export import shape_poly|' /usr/local/lib/python3.11/site-packages/tensorflowjs/converters/jax_conversion.py
+RUN python -c "\
+import pathlib; \
+p = pathlib.Path('/usr/local/lib/python3.11/site-packages/tensorflowjs/converters/tf_saved_model_conversion_v2.py'); \
+content = p.read_text(); \
+content = content.replace('import tensorflow_decision_forests', 'try:\n    import tensorflow_decision_forests\nexcept Exception:\n    tensorflow_decision_forests = None'); \
+p.write_text(content)"
 WORKDIR /app
 EOF
 
