@@ -1202,7 +1202,7 @@
 		$base_path = "/tmp/$model_uuid";
 		$final_path = "$base_path/";
 
-		$command = "bash convert_to_tfjs " . escapeshellarg($modelPath) . " $base_path";
+		$command = "bash convert_to_tfjs.sh " . escapeshellarg($modelPath) . " $base_path";
 
 		// Buffers ausschalten
 		ob_implicit_flush(true);

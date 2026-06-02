@@ -12,7 +12,7 @@ fi
 bash convert_to_tfjs tests/last.pt /tmp/UFO_TEST
 
 if [[ $exit_code != 0 ]]; then
-	echo "bash convert_to_tfjs tests/last.pt /tmp/UFO_TEST failed with: $exit_code"
+	echo "bash convert_to_tfjs.sh tests/last.pt /tmp/UFO_TEST failed with: $exit_code"
 	exit $exit_code
 fi
 
