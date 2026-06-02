@@ -4,6 +4,18 @@ import os
 import sys
 import torch
 
+# Versuchen, ultralytics zu importieren, falls vorhanden (optimal für YOLO11)
+try:
+    from ultralytics import YOLO
+
+    ULTRALYTICS_AVAILABLE = True
+    # Deaktiviert die typischen YOLO-Logs beim reinen Laden
+    import logging
+
+    logging.getLogger("ultralytics").setLevel(logging.ERROR)
+except ImportError:
+    ULTRALYTICS_AVAILABLE = False
+
 
 def extract_labels(model_path, output_path):
     print(f"Lade Modell: {model_path}...")
@@ -12,47 +24,43 @@ def extract_labels(model_path, output_path):
         print(f"Fehler: Die Datei '{model_path}' existiert nicht.")
         sys.exit(1)
 
-    try:
-        # Modell laden (auf CPU, um keine GPU zu erzwingen)
-        checkpoint = torch.load(model_path, map_location="cpu")
-    except Exception as e:
-        print(f"Fehler beim Laden der .pt-Datei: {e}")
-        sys.exit(1)
-
     labels = None
 
-    # Strategie 1: Dictionary-Struktur prüfen
-    if isinstance(checkpoint, dict):
-        possible_keys = [
-            "labels",
-            "classes",
-            "label_names",
-            "names",
-            "config",
-            "hyper_parameters",
-        ]
-        for key in possible_keys:
-            if key in checkpoint:
-                # Falls 'config' ein verschachteltes Dict/Objekt ist
-                if key == "config" and hasattr(checkpoint[key], "id2label"):
-                    labels = checkpoint[key].id2label
-                else:
-                    labels = checkpoint[key]
-                print(f"--> Labels im Key '{key}' gefunden.")
-                break
+    # STRATEGIE 1: Direkt über Ultralytics (falls installiert, am sichersten für YOLO11)
+    if ULTRALYTICS_AVAILABLE:
+        try:
+            model = YOLO(model_path)
+            if hasattr(model, "names") and model.names:
+                labels = model.names
+                print("--> Labels erfolgreich via Ultralytics-Bibliothek extrahiert.")
+        except Exception:
+            # Falls Ultralytics fehlschlägt, nutzen wir den PyTorch Fallback
+            pass
 
-    # Strategie 2: Direktes Modell-Objekt (z.B. Hugging Face / YOLOv8)
-    else:
-        if hasattr(checkpoint, "names"):  # YOLO-Standard
-            labels = checkpoint.names
-            print("--> Labels in 'model.names' (YOLO) gefunden.")
-        elif hasattr(checkpoint, "config") and hasattr(
-            checkpoint.config, "id2label"
-        ):
-            labels = checkpoint.config.id2label
-            print("--> Labels in 'model.config.id2label' gefunden.")
+    # STRATEGIE 2: Manueller PyTorch-Load mit deaktiviertem weights_only Filter
+    if labels is None:
+        try:
+            # weights_only=False ist nötig ab PyTorch 2.6 für Custom-Klassen wie DetectionModel
+            checkpoint = torch.load(
+                model_path, map_location="cpu", weights_only=False
+            )
 
-    # Ergebnis speichern
+            if isinstance(checkpoint, dict):
+                possible_keys = ["names", "labels", "classes", "label_names"]
+                for key in possible_keys:
+                    if key in checkpoint:
+                        labels = checkpoint[key]
+                        print(f"--> Labels im Key '{key}' gefunden.")
+                        break
+            else:
+                if hasattr(checkpoint, "names"):
+                    labels = checkpoint.names
+                    print("--> Labels in Objekt-Attribut 'names' gefunden.")
+        except Exception as e:
+            print(f"Fehler beim Laden der .pt-Datei: {e}")
+            sys.exit(1)
+
+    # JSON exportieren
     if labels is not None:
         try:
             with open(output_path, "w", encoding="utf-8") as f:
@@ -64,14 +72,11 @@ def extract_labels(model_path, output_path):
         print(
             "Fehler: Es wurden keine Labels in den Metadaten der .pt-Datei gefunden."
         )
-        print(
-            "Hinweis: Wenn das Modell nur reine Gewichte (state_dict) enthält, sind keine Labelnamen integriert."
-        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Extrahiert Labels aus einer PyTorch .pt-Datei und speichert sie als JSON."
+        description="Extrahiert Labels aus einer PyTorch / YOLO11 .pt-Datei."
     )
     parser.add_argument(
         "-m",
