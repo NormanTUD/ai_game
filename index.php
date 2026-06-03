@@ -76,14 +76,6 @@
     </div>
 </div>
 
-<!-- 🎮 BIG PLAY BUTTON (appears after model selected) -->
-<div id="quick_play_bar" style="display:none;">
-    <button id="btn_show_examples" class="mega-button secondary">
-        <span class="mega-icon">🎲</span>
-        <span class="mega-text">Spiele-Galerie</span>
-    </button>
-</div>
-
 <!-- Main layout -->
 <div id="game_editor_container" class="always-visible">
 
@@ -92,7 +84,7 @@
         <div class="panel-header">
             <h3>🧩 Mein Programm</h3>
             <div class="editor-actions">
-                <button id="btn_show_examples_small" title="Beispiele">🎮</button>
+                <button id="btn_show_examples_small" title="Beispiele">🎮 Spiele-Galerie</button>
                 <button id="btn_undo" title="Rückgängig">↩️</button>
                 <button id="btn_show_code" title="Code anzeigen">👁</button>
                 <button id="btn_clear_workspace" title="Alles löschen">🗑</button>
