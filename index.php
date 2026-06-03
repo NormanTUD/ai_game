@@ -20,29 +20,6 @@
     </div>
 </div>
 
-<!-- 🎯 STEP-BY-STEP WIZARD (shows only on first visit) -->
-<div id="setup_wizard" class="wizard-visible">
-    <div class="wizard-steps">
-        <div class="wizard-step active" data-step="1">
-            <div class="step-number">1</div>
-            <div class="step-icon">🤖</div>
-            <div class="step-label">KI wählen</div>
-        </div>
-        <div class="wizard-connector"></div>
-        <div class="wizard-step" data-step="2">
-            <div class="step-number">2</div>
-            <div class="step-icon">🎮</div>
-            <div class="step-label">Spiel wählen oder bauen</div>
-        </div>
-        <div class="wizard-connector"></div>
-        <div class="wizard-step" data-step="3">
-            <div class="step-number">3</div>
-            <div class="step-icon">🚀</div>
-            <div class="step-label">Spielen!</div>
-        </div>
-    </div>
-</div>
-
 <!-- ⚡ SIMPLIFIED TOP BAR — Only essentials visible -->
 <div class="topbar-controls">
     <div class="topbar-item topbar-model">
@@ -234,25 +211,6 @@ $(document).ready(function() {
             // UI Controls anpassen
             $("#camera_selector_wrapper, #confidence_wrapper").show();
             $(".topbar-model").hide();
-
-            // ─── WIZARD ANPASSUNG FÜR 1 MODELL ───
-            // 1. Verstecke Schritt 1 und den ersten Connector
-            var $step1 = $('.wizard-step[data-step="1"]');
-            $step1.hide();
-            $step1.next('.wizard-connector').hide();
-            
-            // 2. Entferne altes "active" und nummeriere sichtbare Schritte neu
-            $('.wizard-step').removeClass('active');
-            
-            $('.wizard-step:visible').each(function(index) {
-                // Setze die neue Nummer (1, 2, etc.)
-                $(this).find('.step-number').text(index + 1);
-                
-                // Der neue erste sichtbare Schritt wird aktiv
-                if (index === 0) {
-                    $(this).addClass('active');
-                }
-            });
         } 
         // Fall B: Es gibt MULTIPLE Modelle (oder keines)
         else {
@@ -263,21 +221,6 @@ $(document).ready(function() {
             if (nativeSelectElement) {
                 nativeSelectElement.dispatchEvent(new Event('change', { bubbles: true }));
             }
-
-            // ─── WIZARD BACKUP (Sicherheits-Reset für mehrere Modelle) ───
-            var $step1 = $('.wizard-step[data-step="1"]');
-            $step1.show();
-            $step1.next('.wizard-connector').show();
-            
-            $('.wizard-step').each(function() {
-                var originalStep = $(this).attr('data-step');
-                $(this).find('.step-number').text(originalStep);
-                if(originalStep === "1") {
-                    $(this).addClass('active');
-                } else {
-                    $(this).removeClass('active');
-                }
-            });
         }
     }, 50);
 });
