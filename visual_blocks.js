@@ -592,13 +592,25 @@
 
 		buildBlockDOM(block, type, data);
 
-		// Delete button — mit Variablen-Entfernungs-Prüfung
+		// Delete button – mit Variablen-Entfernungs-Prüfung
 		var delBtn = document.createElement('button');
 		delBtn.className = 'block-delete';
 		delBtn.textContent = '✕';
 		delBtn.title = 'Block löschen';
+
+		// ✅ FIX: Prevent parent's draggable from swallowing click events
+		delBtn.setAttribute('draggable', 'false');
+		delBtn.addEventListener('mousedown', function(e) {
+			e.stopPropagation();
+		});
+		delBtn.addEventListener('dragstart', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+		});
+
 		delBtn.addEventListener('click', function(e) {
 			e.stopPropagation();
+			e.preventDefault();
 
 			// Prüfe ob es ein Variablen-Block ist
 			var blockType = block.getAttribute('data-block-type');
