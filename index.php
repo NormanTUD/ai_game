@@ -83,10 +83,6 @@
 
 <!-- 🎮 BIG PLAY BUTTON (appears after model selected) -->
 <div id="quick_play_bar" style="display:none;">
-    <button id="btn_quick_play" class="mega-button">
-        <span class="mega-icon">🎮</span>
-        <span class="mega-text">Spiel starten!</span>
-    </button>
     <button id="btn_show_examples" class="mega-button secondary">
         <span class="mega-icon">🎲</span>
         <span class="mega-text">Spiele-Galerie</span>
@@ -163,7 +159,6 @@
 
 👋 So einfach geht's:
 1️⃣ Wähle oben eine KI aus
-2️⃣ Klicke auf "🎮 Spiel starten!"
 3️⃣ Halte Dinge vor die Kamera – und spiele!
 
 💡 Tipp: Probiere die Spiele-Galerie aus!
