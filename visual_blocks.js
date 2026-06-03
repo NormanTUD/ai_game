@@ -58,7 +58,6 @@
 				{ type: 'if',    icon: '❓', text: 'Wenn ... dann ...' },
 				{ type: 'elif',  icon: '🤔', text: 'Oder wenn ...' },
 				{ type: 'else',  icon: '🤷', text: 'Ansonsten ...' },
-				{ type: 'end',   icon: '🏁', text: 'Ende der Entscheidung' },
 			],
 			help: '🎓 Hier entscheidet dein Programm, was es tun soll!'
 		},
