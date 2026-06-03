@@ -1432,7 +1432,7 @@
 			'# Stein macht Schere kaputt.\n' +
 			'spieler = leftmost_detection\n' +
 			'gegner = rightmost_detection\n' +
-			'if detection_count ist kleiner als 2\n' +
+			'if detection_count ist nicht gleich 2\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
 			'elif spieler == "none" or gegner == "none"\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
