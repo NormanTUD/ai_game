@@ -1194,11 +1194,6 @@
    ✨ EXTRA KID-FRIENDLY TOUCHES
    ═══════════════════════════════════════════════════════════════ */
 
-/* Rounded, friendly tooltips */
-[title] {
-    position: relative;
-}
-
 /* Make all buttons feel "pressable" */
 button {
     transition: all 0.15s ease;
