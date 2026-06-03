@@ -146,9 +146,9 @@
 
 				// Show advanced controls
 				var camWrapper = document.getElementById('camera_selector_wrapper');
-				var confWrapper = document.getElementById('confidence_wrapper');
+				//var confWrapper = document.getElementById('confidence_wrapper');
 				if (camWrapper) camWrapper.style.display = 'flex';
-				if (confWrapper) confWrapper.style.display = 'flex';
+				//if (confWrapper) confWrapper.style.display = 'flex';
 			} else {
 				advanceWizard(1);
 				if (quickPlayBar) quickPlayBar.style.display = 'none';
