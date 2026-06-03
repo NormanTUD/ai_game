@@ -1426,13 +1426,15 @@
 	}
 
 	function buildRPSExample(l) {
-		return '# ══ SCHERE STEIN PAPIER ══\n' +
+		return '# ╔═ SCHERE STEIN PAPIER ═╗\n' +
 			'# Regeln: Schere schneidet Papier,\n' +
 			'# Papier wickelt Stein ein,\n' +
 			'# Stein macht Schere kaputt.\n' +
 			'spieler = leftmost_detection\n' +
 			'gegner = rightmost_detection\n' +
 			'if detection_count ist kleiner als 2\n' +
+			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
+			'elif spieler == "none" or gegner == "none"\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
 			'elif spieler ist gleich gegner\n' +
 			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
