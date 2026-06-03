@@ -1249,6 +1249,7 @@ button:active {
     padding: 10px 0 6px;
     position: relative;
     z-index: 1;
+    user-select: none;
 }
 
 .mascot-container {
