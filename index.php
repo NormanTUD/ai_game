@@ -32,7 +32,7 @@
         <div class="wizard-step" data-step="2">
             <div class="step-number">2</div>
             <div class="step-icon">🎮</div>
-            <div class="step-label">Spiel wählen</div>
+            <div class="step-label">Spiel wählen oder bauen</div>
         </div>
         <div class="wizard-connector"></div>
         <div class="wizard-step" data-step="3">
