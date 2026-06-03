@@ -1263,7 +1263,6 @@ button:active {
 #mascot {
     font-size: 3rem;
     animation: mascotFloat 3s ease-in-out infinite;
-    cursor: pointer;
     transition: transform 0.2s;
 }
 
