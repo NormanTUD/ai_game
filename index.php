@@ -114,6 +114,7 @@
 
         <div class="preview-card output-card">
             <h3>📋 Was passiert?</h3>
+            <button id="btn_clear_output" class="small-btn" title="Löschen">🗑 Leeren</button>
             <div id="game_output">🎮 Willkommen auf deinem KI-Spielplatz!
 
 👋 So einfach geht's:
@@ -122,7 +123,6 @@
 
 💡 Tipp: Probiere die Spiele-Galerie aus!
 </div>
-            <button id="btn_clear_output" class="small-btn" title="Löschen">🗑 Leeren</button>
         </div>
     </div>
 </div>
