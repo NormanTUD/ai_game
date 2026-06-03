@@ -26,6 +26,41 @@
 		{ value: 'detection_count', label: '🔢 anzahl' }
 	];
 
+	// Sammelt alle benutzerdefinierten Variablen aus set_var und change_var Blöcken
+	function getUserDefinedVars() {
+		var vars = [];
+		var seen = {};
+		var blocks = workspace.querySelectorAll('.workspace-block');
+		for (var i = 0; i < blocks.length; i++) {
+			var type = blocks[i].getAttribute('data-block-type');
+			if (type === 'set_var' || type === 'change_var') {
+				var inputs = blocks[i].querySelectorAll('input.block-input');
+				if (inputs.length > 0) {
+					var varName = inputs[0].value.trim();
+					if (varName && !seen[varName]) {
+						seen[varName] = true;
+						vars.push({ value: varName, label: '📝 ' + varName });
+					}
+				}
+			}
+		}
+		return vars;
+	}
+
+	// Gibt die kombinierten "linke Seite"-Optionen zurück (sensor + user vars)
+	function getLeftSideOptions() {
+		var opts = sensorVars.slice();
+		var userVars = getUserDefinedVars();
+		for (var i = 0; i < userVars.length; i++) {
+			// Nur hinzufügen wenn nicht schon als sensorVar vorhanden
+			var exists = opts.some(function(o) { return o.value === userVars[i].value; });
+			if (!exists) {
+				opts.push(userVars[i]);
+			}
+		}
+		return opts;
+	}
+
 	var operators = [
 		{ value: '==', label: 'ist gleich' },
 		{ value: '!=', label: 'ist nicht' },
@@ -225,24 +260,120 @@
 		for (var i = 0; i < modelLabels.length; i++) {
 			values.push({ value: '"' + modelLabels[i] + '"', label: '🏷️ ' + modelLabels[i] });
 		}
+		// Sensor-Variablen
 		for (var i = 0; i < sensorVars.length; i++) {
 			values.push(sensorVars[i]);
+		}
+		// Benutzerdefinierte Variablen
+		var userVars = getUserDefinedVars();
+		for (var i = 0; i < userVars.length; i++) {
+			var exists = values.some(function(o) { return o.value === userVars[i].value; });
+			if (!exists) {
+				values.push(userVars[i]);
+			}
 		}
 		return values;
 	}
 
+	// Aktualisiert alle Condition-Selects im Workspace wenn sich Variablen ändern
+	function refreshAllConditionSelects(removedVarName) {
+		var blocks = workspace.querySelectorAll('.workspace-block');
+		var affectedBlocks = [];
+
+		for (var i = 0; i < blocks.length; i++) {
+			var type = blocks[i].getAttribute('data-block-type');
+			if (type === 'if' || type === 'elif' || type === 'while') {
+				// Prüfe ob dieser Block die entfernte Variable verwendet
+				if (removedVarName) {
+					var selects = blocks[i].querySelectorAll('select.cond-left, select.cond-value');
+					for (var s = 0; s < selects.length; s++) {
+						if (selects[s].value === removedVarName) {
+							affectedBlocks.push(blocks[i]);
+							break;
+						}
+					}
+				}
+				refreshConditionSelects(blocks[i]);
+			}
+		}
+
+		// Warnung anzeigen wenn Blöcke betroffen sind
+		if (removedVarName && affectedBlocks.length > 0) {
+			showVarRemovedWarning(removedVarName, affectedBlocks.length);
+		}
+	}
+
+	// Kleine Warnung anzeigen
+	function showVarRemovedWarning(varName, count) {
+		// Entferne alte Warnung falls vorhanden
+		var existing = document.querySelector('.var-removed-warning');
+		if (existing) existing.remove();
+
+		var warning = document.createElement('div');
+		warning.className = 'var-removed-warning';
+		warning.innerHTML = '⚠️ Variable <strong>"' + varName + '"</strong> entfernt! ' +
+			count + ' Bedingung' + (count > 1 ? 'en wurden' : ' wurde') +
+			' auf "anzahl" zurückgesetzt.';
+		warning.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); ' +
+			'background:#ff9800; color:#000; padding:10px 20px; border-radius:8px; ' +
+			'font-size:0.85rem; font-weight:500; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.3); ' +
+			'animation: fadeInUp 0.3s ease;';
+
+		document.body.appendChild(warning);
+
+		// Nach 4 Sekunden ausblenden
+		setTimeout(function() {
+			warning.style.opacity = '0';
+			warning.style.transition = 'opacity 0.5s';
+			setTimeout(function() { warning.remove(); }, 500);
+		}, 4000);
+	}
+
 	function refreshConditionSelects(block) {
-		var selects = block.querySelectorAll('select.cond-value');
+		// Refresh cond-left selects
+		var leftSelects = block.querySelectorAll('select.cond-left');
+		var leftOpts = getLeftSideOptions();
+		for (var i = 0; i < leftSelects.length; i++) {
+			var currentVal = leftSelects[i].value;
+			leftSelects[i].innerHTML = '';
+			var foundCurrent = false;
+			for (var j = 0; j < leftOpts.length; j++) {
+				var opt = document.createElement('option');
+				opt.value = leftOpts[j].value;
+				opt.textContent = leftOpts[j].label;
+				if (leftOpts[j].value === currentVal) {
+					opt.selected = true;
+					foundCurrent = true;
+				}
+				leftSelects[i].appendChild(opt);
+			}
+			// Falls der aktuelle Wert nicht mehr existiert, auf default setzen
+			if (!foundCurrent && currentVal) {
+				// Wert existiert nicht mehr - auf "detection_count" (anzahl) setzen
+				leftSelects[i].value = 'detection_count';
+			}
+		}
+
+		// Refresh cond-value selects
+		var valueSelects = block.querySelectorAll('select.cond-value');
 		var values = getCompareValues();
-		for (var i = 0; i < selects.length; i++) {
-			var currentVal = selects[i].value;
-			selects[i].innerHTML = '';
+		for (var i = 0; i < valueSelects.length; i++) {
+			var currentVal = valueSelects[i].value;
+			valueSelects[i].innerHTML = '';
+			var foundCurrent = false;
 			for (var j = 0; j < values.length; j++) {
 				var opt = document.createElement('option');
 				opt.value = values[j].value;
 				opt.textContent = values[j].label;
-				if (values[j].value === currentVal) opt.selected = true;
-				selects[i].appendChild(opt);
+				if (values[j].value === currentVal) {
+					opt.selected = true;
+					foundCurrent = true;
+				}
+				valueSelects[i].appendChild(opt);
+			}
+			// Falls der aktuelle Wert nicht mehr existiert, auf default setzen
+			if (!foundCurrent && currentVal) {
+				valueSelects[i].value = 'detection_count';
 			}
 		}
 	}
@@ -296,7 +427,7 @@
 		recalcIndentation();
 		var blocks = workspace.querySelectorAll('.workspace-block');
 		var lines = [];
-		var indentStack = []; // track indent levels
+		var indentStack = [];
 
 		for (var i = 0; i < blocks.length; i++) {
 			var code = getBlockCode(blocks[i]);
@@ -304,9 +435,7 @@
 
 			var currentIndent = parseInt(blocks[i].getAttribute('data-indent')) || 0;
 
-			// Wenn die Einrückung sinkt, "end" einfügen
 			while (indentStack.length > 0 && indentStack[indentStack.length - 1] >= currentIndent) {
-				// Aber nicht vor elif/else — die gehören zum selben if-Block
 				var type = blocks[i].getAttribute('data-block-type');
 				if (type === 'elif' || type === 'else') break;
 				lines.push('end');
@@ -321,7 +450,6 @@
 			}
 		}
 
-		// Alle offenen Blöcke am Ende schließen
 		while (indentStack.length > 0) {
 			lines.push('end');
 			indentStack.pop();
@@ -332,6 +460,9 @@
 		if (placeholder) {
 			placeholder.style.display = blocks.length === 0 ? 'block' : 'none';
 		}
+
+		// ✅ NEU: Alle Condition-Selects mit aktuellen Variablen aktualisieren
+		refreshAllConditionSelects(null);
 	}
 
 	function getBlockCode(block) {
@@ -461,14 +592,51 @@
 
 		buildBlockDOM(block, type, data);
 
-		// Delete button
+		// Delete button — mit Variablen-Entfernungs-Prüfung
 		var delBtn = document.createElement('button');
 		delBtn.className = 'block-delete';
 		delBtn.textContent = '✕';
 		delBtn.title = 'Block löschen';
 		delBtn.addEventListener('click', function(e) {
 			e.stopPropagation();
+
+			// Prüfe ob es ein Variablen-Block ist
+			var blockType = block.getAttribute('data-block-type');
+			var removedVarName = null;
+
+			if (blockType === 'set_var' || blockType === 'change_var') {
+				var inputs = block.querySelectorAll('input.block-input');
+				if (inputs.length > 0) {
+					var varName = inputs[0].value.trim();
+					if (varName) {
+						// Prüfe ob diese Variable noch in einem anderen Block definiert wird
+						var otherBlocks = workspace.querySelectorAll('.workspace-block');
+						var stillDefined = false;
+						for (var i = 0; i < otherBlocks.length; i++) {
+							if (otherBlocks[i] === block) continue;
+							var otherType = otherBlocks[i].getAttribute('data-block-type');
+							if (otherType === 'set_var' || otherType === 'change_var') {
+								var otherInputs = otherBlocks[i].querySelectorAll('input.block-input');
+								if (otherInputs.length > 0 && otherInputs[0].value.trim() === varName) {
+									stillDefined = true;
+									break;
+								}
+							}
+						}
+						if (!stillDefined) {
+							removedVarName = varName;
+						}
+					}
+				}
+			}
+
 			block.remove();
+
+			// Wenn Variable entfernt wurde, mit Warnung aktualisieren
+			if (removedVarName) {
+				refreshAllConditionSelects(removedVarName);
+			}
+
 			syncBlocksToDSL();
 		});
 		block.appendChild(delBtn);
@@ -478,6 +646,39 @@
 		for (var i = 0; i < elements.length; i++) {
 			elements[i].addEventListener('input', syncBlocksToDSL);
 			elements[i].addEventListener('change', syncBlocksToDSL);
+		}
+
+		// Spezial-Listener für Variablen-Inputs: bei Namensänderung Selects aktualisieren
+		if (type === 'set_var' || type === 'change_var') {
+			var varNameInput = block.querySelector('input.block-input');
+			if (varNameInput) {
+				var lastVarName = varNameInput.value.trim();
+				varNameInput.addEventListener('input', function() {
+					var newName = this.value.trim();
+					if (newName !== lastVarName) {
+						// Prüfe ob alter Name noch woanders definiert ist
+						var stillDefined = false;
+						var otherBlocks = workspace.querySelectorAll('.workspace-block');
+						for (var i = 0; i < otherBlocks.length; i++) {
+							if (otherBlocks[i] === block) continue;
+							var ot = otherBlocks[i].getAttribute('data-block-type');
+							if (ot === 'set_var' || ot === 'change_var') {
+								var oi = otherBlocks[i].querySelectorAll('input.block-input');
+								if (oi.length > 0 && oi[0].value.trim() === lastVarName) {
+									stillDefined = true;
+									break;
+								}
+							}
+						}
+						if (!stillDefined && lastVarName) {
+							refreshAllConditionSelects(lastVarName);
+						} else {
+							refreshAllConditionSelects(null);
+						}
+						lastVarName = newName;
+					}
+				});
+			}
 		}
 
 		// Drag events for reordering within workspace
@@ -625,91 +826,125 @@
 
 			case 'if':
 			case 'elif':
-			    var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
-			    var icon = type === 'if' ? '🔶' : '🔷';
-			    var condData = (data && data.condition) || {};
+				var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
+				var icon = type === 'if' ? '🔶' : '🔷';
+				var condData = (data && data.condition) || {};
 
-			    content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
+				content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
 
-			    // LEFT side
-			    var leftVal = condData.left || 'links';
-			    var leftOpts = sensorVars.slice();
-			    var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
-			    if (leftIsCustom) {
-				leftOpts.unshift({ value: leftVal, label: '📝 ' + leftVal });
-			    }
-			    var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
-			    content.appendChild(leftSelect);
+				// LEFT side — ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
+				var leftVal = condData.left || 'links';
+				var leftOpts = getLeftSideOptions();
+				var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
+				if (leftIsCustom) {
+					leftOpts.unshift({ value: leftVal, label: '📝 ' + leftVal });
+				}
+				var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
+				content.appendChild(leftSelect);
 
-			    var opSelect = buildSelect(operators, condData.op || '==', 'cond-op');
-			    content.appendChild(opSelect);
+				var opSelect = buildSelect(operators, condData.op || '==', 'cond-op');
+				content.appendChild(opSelect);
 
-			    // RIGHT side
-			    var rightVal = condData.right || '"none"';
-			    var rightOpts = getCompareValues();
-			    var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
-			    if (rightIsCustom) {
-				rightOpts.unshift({ value: rightVal, label: '📝 ' + rightVal });
-			    }
-			    var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
-			    content.appendChild(rightSelect);
+				// RIGHT side
+				var rightVal = condData.right || '"none"';
+				var rightOpts = getCompareValues();
+				var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
+				if (rightIsCustom) {
+					rightOpts.unshift({ value: rightVal, label: '📝 ' + rightVal });
+				}
+				var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
+				content.appendChild(rightSelect);
 
-			    // LOGIC CONNECTOR (und / oder / none)
-			    var logicOpts = [
-				{ value: '', label: '—' },
-				{ value: 'und', label: 'UND 🔗' },
-				{ value: 'oder', label: 'ODER 🔀' }
-			    ];
-			    var logicVal = condData.logic || '';
-			    var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
-			    content.appendChild(logicSelect);
+				// LOGIC CONNECTOR (und / oder / none)
+				var logicOpts = [
+					{ value: '', label: '—' },
+					{ value: 'und', label: 'UND 🔗' },
+					{ value: 'oder', label: 'ODER 🔀' }
+				];
+				var logicVal = condData.logic || '';
+				var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
+				content.appendChild(logicSelect);
 
-			    // SECOND CONDITION (hidden if logic is empty)
-			    var cond2Wrapper = document.createElement('span');
-			    cond2Wrapper.className = 'cond2-wrapper';
-			    cond2Wrapper.style.display = logicVal ? 'inline' : 'none';
+				// SECOND CONDITION (hidden if logic is empty)
+				var cond2Wrapper = document.createElement('span');
+				cond2Wrapper.className = 'cond2-wrapper';
+				cond2Wrapper.style.display = logicVal ? 'inline' : 'none';
 
-			    var left2Val = condData.left2 || 'rechts';
-			    var left2Opts = sensorVars.slice();
-			    var left2IsCustom = !left2Opts.some(function(o) { return o.value === left2Val; });
-			    if (left2IsCustom) {
-				left2Opts.unshift({ value: left2Val, label: '📝 ' + left2Val });
-			    }
-			    var left2Select = buildSelect(left2Opts, left2Val, 'cond-left');
-			    cond2Wrapper.appendChild(left2Select);
+				// ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
+				var left2Val = condData.left2 || 'rechts';
+				var left2Opts = getLeftSideOptions();
+				var left2IsCustom = !left2Opts.some(function(o) { return o.value === left2Val; });
+				if (left2IsCustom) {
+					left2Opts.unshift({ value: left2Val, label: '📝 ' + left2Val });
+				}
+				var left2Select = buildSelect(left2Opts, left2Val, 'cond-left');
+				cond2Wrapper.appendChild(left2Select);
 
-			    var op2Select = buildSelect(operators, condData.op2 || '==', 'cond-op');
-			    cond2Wrapper.appendChild(op2Select);
+				var op2Select = buildSelect(operators, condData.op2 || '==', 'cond-op');
+				cond2Wrapper.appendChild(op2Select);
 
-			    var right2Val = condData.right2 || '"none"';
-			    var right2Opts = getCompareValues();
-			    var right2IsCustom = !right2Opts.some(function(o) { return o.value === right2Val; });
-			    if (right2IsCustom) {
-				right2Opts.unshift({ value: right2Val, label: '📝 ' + right2Val });
-			    }
-			    var right2Select = buildSelect(right2Opts, right2Val, 'cond-value');
-			    cond2Wrapper.appendChild(right2Select);
+				var right2Val = condData.right2 || '"none"';
+				var right2Opts = getCompareValues();
+				var right2IsCustom = !right2Opts.some(function(o) { return o.value === right2Val; });
+				if (right2IsCustom) {
+					right2Opts.unshift({ value: right2Val, label: '📝 ' + right2Val });
+				}
+				var right2Select = buildSelect(right2Opts, right2Val, 'cond-value');
+				cond2Wrapper.appendChild(right2Select);
 
-			    content.appendChild(cond2Wrapper);
+				content.appendChild(cond2Wrapper);
 
-			    // Toggle visibility of second condition when logic changes
-			    logicSelect.addEventListener('change', function() {
-				cond2Wrapper.style.display = this.value ? 'inline' : 'none';
-				syncBlocksToDSL();
-			    });
+				// Toggle visibility of second condition when logic changes
+				logicSelect.addEventListener('change', function() {
+					cond2Wrapper.style.display = this.value ? 'inline' : 'none';
+					syncBlocksToDSL();
+				});
 
-			    var thenSpan = document.createElement('span');
-			    thenSpan.className = 'bk';
-			    thenSpan.textContent = ' dann';
-			    content.appendChild(thenSpan);
-			    break;
+				var thenSpan = document.createElement('span');
+				thenSpan.className = 'bk';
+				thenSpan.textContent = ' dann';
+				content.appendChild(thenSpan);
+				break;
+
+			case 'while':
+				var wCondData = (data && data.condition) || {};
+				content.innerHTML = '<span class="bi">🔁</span> <span class="bk">solange</span> ';
+
+				// ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
+				var wLeftVal = wCondData.left || 'links';
+				var wLeftOpts = getLeftSideOptions();
+				var wLeftIsCustom = !wLeftOpts.some(function(o) { return o.value === wLeftVal; });
+				if (wLeftIsCustom) {
+					wLeftOpts.unshift({ value: wLeftVal, label: '📝 ' + wLeftVal });
+				}
+				var wLeftSelect = buildSelect(wLeftOpts, wLeftVal, 'cond-left');
+				content.appendChild(wLeftSelect);
+
+				var wOpSelect = buildSelect(operators, wCondData.op || '!=', 'cond-op');
+				content.appendChild(wOpSelect);
+
+				var wRightVal = wCondData.right || '"none"';
+				var wRightOpts = getCompareValues();
+				var wRightIsCustom = !wRightOpts.some(function(o) { return o.value === wRightVal; });
+				if (wRightIsCustom) {
+					wRightOpts.unshift({ value: wRightVal, label: '📝 ' + wRightVal });
+				}
+				var wRightSelect = buildSelect(wRightOpts, wRightVal, 'cond-value');
+				content.appendChild(wRightSelect);
+
+				var repeatSpan = document.createElement('span');
+				repeatSpan.className = 'bk';
+				repeatSpan.textContent = ' wiederhole';
+				content.appendChild(repeatSpan);
+				break;
+
 
 			case 'while':
 				var wCondData = (data && data.condition) || {};
 				content.innerHTML = '<span class="bi">🔁</span> <span class="bk">solange</span> ';
 
 				var wLeftVal = wCondData.left || 'links';
-				var wLeftOpts = sensorVars.slice();
+				var wLeftOpts = getLeftSideOptions();
 				var wLeftIsCustom = !wLeftOpts.some(function(o) { return o.value === wLeftVal; });
 				if (wLeftIsCustom) {
 					wLeftOpts.unshift({ value: wLeftVal, label: '📝 ' + wLeftVal });
@@ -944,7 +1179,42 @@
 			trashZone.classList.remove('drag-over');
 
 			if (draggedBlock && draggedFromWorkspace) {
+				// Prüfe ob es ein Variablen-Block ist
+				var blockType = draggedBlock.getAttribute('data-block-type');
+				var removedVarName = null;
+
+				if (blockType === 'set_var' || blockType === 'change_var') {
+					var inputs = draggedBlock.querySelectorAll('input.block-input');
+					if (inputs.length > 0) {
+						var varName = inputs[0].value.trim();
+						if (varName) {
+							var otherBlocks = workspace.querySelectorAll('.workspace-block');
+							var stillDefined = false;
+							for (var i = 0; i < otherBlocks.length; i++) {
+								if (otherBlocks[i] === draggedBlock) continue;
+								var otherType = otherBlocks[i].getAttribute('data-block-type');
+								if (otherType === 'set_var' || otherType === 'change_var') {
+									var otherInputs = otherBlocks[i].querySelectorAll('input.block-input');
+									if (otherInputs.length > 0 && otherInputs[0].value.trim() === varName) {
+										stillDefined = true;
+										break;
+									}
+								}
+							}
+							if (!stillDefined) {
+								removedVarName = varName;
+							}
+						}
+					}
+				}
+
 				draggedBlock.remove();
+
+				// Wenn Variable entfernt wurde, mit Warnung aktualisieren
+				if (removedVarName) {
+					refreshAllConditionSelects(removedVarName);
+				}
+
 				syncBlocksToDSL();
 			}
 
