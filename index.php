@@ -18,7 +18,6 @@
             Lass uns zusammen ein Spiel bauen! 🎮✨
         </div>
     </div>
-    <p class="hero-subtitle">Baue dein eigenes Kamera-Spiel – ganz einfach!</p>
 </div>
 
 <!-- 🎯 STEP-BY-STEP WIZARD (shows only on first visit) -->
