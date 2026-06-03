@@ -79,7 +79,6 @@
 			label: '👀 Gucken',
 			color: '#4fc3f7',
 			blocks: [
-				{ type: 'get_best',    icon: '⭐', text: 'Was sehe ich am besten?' },
 				{ type: 'get_count',   icon: '🔢', text: 'Wie viele Dinge sehe ich?' },
 				{ type: 'get_left',    icon: '👈', text: 'Was ist links im Bild?' },
 				{ type: 'get_right',   icon: '👉', text: 'Was ist rechts im Bild?' },
