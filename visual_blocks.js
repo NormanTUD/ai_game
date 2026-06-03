@@ -362,10 +362,26 @@
 			case 'if':
 			case 'elif':
 				var keyword = type === 'if' ? 'if' : 'elif';
+				// Selects order: [0]=cond-left, [1]=cond-op, [2]=cond-value, [3]=cond-logic, [4]=cond-left2, [5]=cond-op2, [6]=cond-value2
 				var condLeft = getSelectValue(selects, 0) || 'links';
 				var condOp = getSelectValue(selects, 1) || '==';
 				var condRight = getSelectValue(selects, 2) || '"none"';
-				return keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
+				var condLogic = getSelectValue(selects, 3) || '';
+
+				var code = keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
+
+				if (condLogic === 'und' && selects.length >= 7) {
+					var condLeft2 = getSelectValue(selects, 4) || 'links';
+					var condOp2 = getSelectValue(selects, 5) || '==';
+					var condRight2 = getSelectValue(selects, 6) || '"none"';
+					code += ' and ' + condLeft2 + ' ' + condOp2 + ' ' + condRight2;
+				} else if (condLogic === 'oder' && selects.length >= 7) {
+					var condLeft2 = getSelectValue(selects, 4) || 'links';
+					var condOp2 = getSelectValue(selects, 5) || '==';
+					var condRight2 = getSelectValue(selects, 6) || '"none"';
+					code += ' or ' + condLeft2 + ' ' + condOp2 + ' ' + condRight2;
+				}
+				return code;
 
 			case 'while':
 				var wLeft = getSelectValue(selects, 0) || 'links';
@@ -609,40 +625,84 @@
 
 			case 'if':
 			case 'elif':
-				var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
-				var icon = type === 'if' ? '🔶' : '🔷';
-				var condData = (data && data.condition) || {};
+			    var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
+			    var icon = type === 'if' ? '🔶' : '🔷';
+			    var condData = (data && data.condition) || {};
 
-				content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
+			    content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
 
-				// LEFT side: combo of select + free input
-				var leftVal = condData.left || 'links';
-				var leftOpts = sensorVars.slice();
-				var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
-				if (leftIsCustom) {
-					leftOpts.unshift({ value: leftVal, label: '📝 ' + leftVal });
-				}
-				var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
-				content.appendChild(leftSelect);
+			    // LEFT side
+			    var leftVal = condData.left || 'links';
+			    var leftOpts = sensorVars.slice();
+			    var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
+			    if (leftIsCustom) {
+				leftOpts.unshift({ value: leftVal, label: '📝 ' + leftVal });
+			    }
+			    var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
+			    content.appendChild(leftSelect);
 
-				var opSelect = buildSelect(operators, condData.op || '==', 'cond-op');
-				content.appendChild(opSelect);
+			    var opSelect = buildSelect(operators, condData.op || '==', 'cond-op');
+			    content.appendChild(opSelect);
 
-				// RIGHT side: combo of select + free input
-				var rightVal = condData.right || '"none"';
-				var rightOpts = getCompareValues();
-				var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
-				if (rightIsCustom) {
-					rightOpts.unshift({ value: rightVal, label: '📝 ' + rightVal });
-				}
-				var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
-				content.appendChild(rightSelect);
+			    // RIGHT side
+			    var rightVal = condData.right || '"none"';
+			    var rightOpts = getCompareValues();
+			    var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
+			    if (rightIsCustom) {
+				rightOpts.unshift({ value: rightVal, label: '📝 ' + rightVal });
+			    }
+			    var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
+			    content.appendChild(rightSelect);
 
-				var thenSpan = document.createElement('span');
-				thenSpan.className = 'bk';
-				thenSpan.textContent = ' dann';
-				content.appendChild(thenSpan);
-				break;
+			    // LOGIC CONNECTOR (und / oder / none)
+			    var logicOpts = [
+				{ value: '', label: '—' },
+				{ value: 'und', label: 'UND 🔗' },
+				{ value: 'oder', label: 'ODER 🔀' }
+			    ];
+			    var logicVal = condData.logic || '';
+			    var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
+			    content.appendChild(logicSelect);
+
+			    // SECOND CONDITION (hidden if logic is empty)
+			    var cond2Wrapper = document.createElement('span');
+			    cond2Wrapper.className = 'cond2-wrapper';
+			    cond2Wrapper.style.display = logicVal ? 'inline' : 'none';
+
+			    var left2Val = condData.left2 || 'rechts';
+			    var left2Opts = sensorVars.slice();
+			    var left2IsCustom = !left2Opts.some(function(o) { return o.value === left2Val; });
+			    if (left2IsCustom) {
+				left2Opts.unshift({ value: left2Val, label: '📝 ' + left2Val });
+			    }
+			    var left2Select = buildSelect(left2Opts, left2Val, 'cond-left');
+			    cond2Wrapper.appendChild(left2Select);
+
+			    var op2Select = buildSelect(operators, condData.op2 || '==', 'cond-op');
+			    cond2Wrapper.appendChild(op2Select);
+
+			    var right2Val = condData.right2 || '"none"';
+			    var right2Opts = getCompareValues();
+			    var right2IsCustom = !right2Opts.some(function(o) { return o.value === right2Val; });
+			    if (right2IsCustom) {
+				right2Opts.unshift({ value: right2Val, label: '📝 ' + right2Val });
+			    }
+			    var right2Select = buildSelect(right2Opts, right2Val, 'cond-value');
+			    cond2Wrapper.appendChild(right2Select);
+
+			    content.appendChild(cond2Wrapper);
+
+			    // Toggle visibility of second condition when logic changes
+			    logicSelect.addEventListener('change', function() {
+				cond2Wrapper.style.display = this.value ? 'inline' : 'none';
+				syncBlocksToDSL();
+			    });
+
+			    var thenSpan = document.createElement('span');
+			    thenSpan.className = 'bk';
+			    thenSpan.textContent = ' dann';
+			    content.appendChild(thenSpan);
+			    break;
 
 			case 'while':
 				var wCondData = (data && data.condition) || {};
@@ -1022,6 +1082,58 @@
 
 	function parseConditionString(condStr) {
 		condStr = condStr.trim();
+
+		// Replace German operators with symbols for parsing
+		var normalized = condStr
+			.replace(/\bist größer oder gleich\b/g, '>=')
+			.replace(/\bist kleiner oder gleich\b/g, '<=')
+			.replace(/\bist größer als\b/g, '>')
+			.replace(/\bist kleiner als\b/g, '<')
+			.replace(/\bist gleich\b/g, '==')
+			.replace(/\bist nicht gleich\b/g, '!=')
+			.replace(/\bist nicht\b/g, '!=');
+
+		// Check for 'and' / 'or' compound conditions
+		var andIdx = findLogicalSplit(normalized, ' and ');
+		if (andIdx !== -1) {
+			var leftPart = normalized.substring(0, andIdx).trim();
+			var rightPart = normalized.substring(andIdx + 5).trim();
+			var leftCond = parseSingleCondition(leftPart);
+			var rightCond = parseSingleCondition(rightPart);
+			return {
+				left: leftCond.left,
+				op: leftCond.op,
+				right: leftCond.right,
+				logic: 'und',
+				left2: rightCond.left,
+				op2: rightCond.op,
+				right2: rightCond.right
+			};
+		}
+
+		var orIdx = findLogicalSplit(normalized, ' or ');
+		if (orIdx !== -1) {
+			var leftPart = normalized.substring(0, orIdx).trim();
+			var rightPart = normalized.substring(orIdx + 4).trim();
+			var leftCond = parseSingleCondition(leftPart);
+			var rightCond = parseSingleCondition(rightPart);
+			return {
+				left: leftCond.left,
+				op: leftCond.op,
+				right: leftCond.right,
+				logic: 'oder',
+				left2: rightCond.left,
+				op2: rightCond.op,
+				right2: rightCond.right
+			};
+		}
+
+		// Simple condition
+		return parseSingleCondition(normalized);
+	}
+
+	function parseSingleCondition(condStr) {
+		condStr = condStr.trim();
 		var ops = ['==', '!=', '>=', '<=', '>', '<'];
 		for (var i = 0; i < ops.length; i++) {
 			var op = ops[i];
@@ -1035,6 +1147,20 @@
 			}
 		}
 		return { left: condStr, op: '==', right: '"none"' };
+	}
+
+	function findLogicalSplit(str, separator) {
+		var inStr = false, strChar = '';
+		var sepLen = separator.length;
+		for (var i = 0; i <= str.length - sepLen; i++) {
+			var ch = str[i];
+			if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; }
+			else if (inStr && ch === strChar) { inStr = false; }
+			else if (!inStr && str.substring(i, i + sepLen) === separator) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	function findOpInCondition(str, op) {

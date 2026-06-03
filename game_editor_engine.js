@@ -698,6 +698,7 @@
 			.replace(/\bist kleiner oder gleich\b/g, '<=')
 			.replace(/\bist größer als\b/g, '>')
 			.replace(/\bist kleiner als\b/g, '<')
+			.replace(/\bist nicht gleich\b/g, '!=')
 			.replace(/\bist gleich\b/g, '==')
 			.replace(/\bist nicht\b/g, '!=');
 	}
@@ -720,6 +721,9 @@
 
 	function evaluateCondition(condStr, vars) {
 		condStr = replaceGermanOperators(condStr.trim());
+
+		// Support German logical operators
+		condStr = condStr.replace(/\bund\b/g, 'and').replace(/\boder\b/g, 'or');
 
 		var andParts = splitLogical(condStr, ' and ');
 		if (andParts.length > 1) return evaluateAnd(andParts, vars);
@@ -1424,19 +1428,19 @@
 			'# Stein macht Schere kaputt.\n' +
 			'spieler = leftmost_detection\n' +
 			'gegner = rightmost_detection\n' +
-			'if detection_count ist nicht gleich 2\n' +
+			'if detection_count != 2\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
 			'elif spieler == "none" or gegner == "none"\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
-			'elif spieler ist gleich gegner\n' +
+			'elif spieler == gegner\n' +
 			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
-			'elif spieler ist gleich "' + l.l1 + '" and gegner ist gleich "' + l.l3 + '"\n' +
+			'elif spieler == "' + l.l1 + '" and gegner == "' + l.l3 + '"\n' +
 			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-			'elif spieler ist gleich "' + l.l3 + '" and gegner ist gleich "' + l.l2 + '"\n' +
+			'elif spieler == "' + l.l3 + '" and gegner == "' + l.l2 + '"\n' +
 			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-			'elif spieler ist gleich "' + l.l2 + '" and gegner ist gleich "' + l.l1 + '"\n' +
+			'elif spieler == "' + l.l2 + '" and gegner == "' + l.l1 + '"\n' +
 			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
 			'else\n' +
