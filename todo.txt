@@ -1,6 +1,4 @@
 Überarbeitungen SSP Teil: Logik
 
-    prinzipiell:
-        Reduktion auf Bausteine, die tatsächlich benötigt werden -> Ablenkung reduzieren
     Bausteine: was ist links bzw. rechts im Bild
     Baustein if: wie selbst vergebene Variablen verwenden?
