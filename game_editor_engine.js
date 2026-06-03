@@ -1435,16 +1435,12 @@
 			'elif spieler == gegner\n' +
 			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
 			'elif spieler == "' + l.l1 + '" and gegner == "' + l.l3 + '"\n' +
-			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
 			'elif spieler == "' + l.l3 + '" and gegner == "' + l.l2 + '"\n' +
-			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
 			'elif spieler == "' + l.l2 + '" and gegner == "' + l.l1 + '"\n' +
-			'  siege += 1\n' +
 			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
 			'else\n' +
-			'  niederlagen += 1\n' +
 			'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + gegner + " schlägt " + spieler loser\n';
 	}
 
