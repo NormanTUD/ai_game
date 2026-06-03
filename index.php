@@ -18,7 +18,6 @@
             Lass uns zusammen ein Spiel bauen! 🎮✨
         </div>
     </div>
-    <h1>🎮 Mein KI-Spielplatz</h1>
     <p class="hero-subtitle">Baue dein eigenes Kamera-Spiel – ganz einfach!</p>
 </div>
 
