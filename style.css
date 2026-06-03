@@ -7,7 +7,7 @@ body {
 	min-height: 100vh;
 	font-family: 'Nunito', 'Baloo 2', 'Segoe UI', sans-serif;
 	color: #3a3a5c;
-	background: linear-gradient(135deg, #1a1a2e 0%, #16213e 30%, #1a1a2e 60%, #0f3460 100%);
+	background: linear-gradient(135deg, #f4f7f6 0%, #e0f2fe 50%, #e2e8f0 100%);
 	background-attachment: fixed;
 }
 
