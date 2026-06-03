@@ -222,7 +222,41 @@
 <script src="game_editor_engine.js"></script>
 
 <script>
-	$("#game_model_select").val("none").trigger("change")
+$(document).ready(function() {
+    // Kleines Timeout, damit dynamisch geladene Optionen sicher im DOM existieren
+    setTimeout(function() {
+        var $select = $('#game_model_select');
+        var $validOptions = $select.find('option:not([value="none"])');
+
+        // Fall A: Es existiert EXAKT ein Modell
+        if ($validOptions.length === 1) {
+            var exactValue = $validOptions.val();
+            
+            // 1. Wert im Select-Feld setzen
+            $select.val(exactValue);
+            
+            // 2. NATIVES JavaScript-Event erzwingen (startet das Hintergrundprogramm sicher)
+            var nativeSelectElement = $select[0]; // Holt das echte DOM-Element aus jQuery
+            var changeEvent = new Event('change', { bubbles: true });
+            nativeSelectElement.dispatchEvent(changeEvent);
+            
+            // 3. Kamera und Slider einblenden, Modell-Auswahl verstecken
+            $("#camera_selector_wrapper, #confidence_wrapper").show();
+            $(".topbar-model").hide();
+        } 
+        // Fall B: Es gibt MULTIPLE Modelle (oder keines)
+        else {
+            $(".topbar-model").show();
+            $select.val("none");
+            
+            // Auch hier das native Event feuern
+            var nativeSelectElement = $select[0];
+            if (nativeSelectElement) {
+                nativeSelectElement.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+    }, 50); // 50 Millisekunden Verzögerung reichen völlig aus
+});
 </script>
 
 <?php include_once("footer.php"); ?>
