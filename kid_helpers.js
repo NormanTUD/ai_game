@@ -24,7 +24,6 @@
 		],
 		blockAdded: [
 			"Gut gemacht! 👏",
-			"Super Block! Weiter so! ⭐",
 			"Du bist ein Programmier-Profi! 🧑‍💻"
 		],
 		error: [
