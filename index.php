@@ -63,11 +63,6 @@
             <option value="">Kameras werden geladen...</option>
         </select>
     </div>
-    <div class="topbar-item topbar-confidence" style="display:none;" id="confidence_wrapper">
-        <label>🎚️ Genauigkeit:</label>
-        <input type="range" id="game_conf_slider" min="0" max="1" step="0.01" value="0.3">
-        <span id="game_conf_value">0.30</span>
-    </div>
     <div class="topbar-item" style="display:none;">
         <input type="number" id="game_fps" min="1" max="10" value="3">
     </div>

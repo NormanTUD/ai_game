@@ -317,7 +317,7 @@
 	}
 
 	function getGameConfThreshold() {
-		return parseFloat(document.getElementById('game_conf_slider').value) || 0.3;
+		return 0.3;
 	}
 
 	function computeIntersection(a, b) {
@@ -1370,18 +1370,6 @@
 		});
 	}
 	bindCameraSelect();
-
-	// ─── Confidence slider ──────────────────────────────────────────────
-
-	function bindConfSlider() {
-		var slider = document.getElementById('game_conf_slider');
-		if (!slider) return;
-		slider.addEventListener('input', function () {
-			var display = document.getElementById('game_conf_value');
-			if (display) display.textContent = parseFloat(this.value).toFixed(2);
-		});
-	}
-	bindConfSlider();
 
 	// ─── FPS hot-swap ───────────────────────────────────────────────────
 
