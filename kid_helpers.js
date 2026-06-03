@@ -5,101 +5,6 @@
 (function() {
 	"use strict";
 
-	// ─── Sound System ───────────────────────────────────────────────────
-	var soundEnabled = true;
-	var audioCtx = null;
-
-	function getAudioContext() {
-		if (!audioCtx) {
-			audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-		}
-		return audioCtx;
-	}
-
-	window.playSound = function(type) {
-		if (!soundEnabled) return;
-		try {
-			var ctx = getAudioContext();
-			var osc = ctx.createOscillator();
-			var gain = ctx.createGain();
-			osc.connect(gain);
-			gain.connect(ctx.destination);
-
-			switch (type) {
-				case 'pop':
-					osc.frequency.setValueAtTime(600, ctx.currentTime);
-					osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1);
-					gain.gain.setValueAtTime(0.3, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.1);
-					break;
-
-				case 'success':
-					osc.frequency.setValueAtTime(523, ctx.currentTime);
-					osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
-					osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
-					gain.gain.setValueAtTime(0.3, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.4);
-					break;
-
-				case 'win':
-					osc.type = 'square';
-					osc.frequency.setValueAtTime(440, ctx.currentTime);
-					osc.frequency.setValueAtTime(554, ctx.currentTime + 0.1);
-					osc.frequency.setValueAtTime(659, ctx.currentTime + 0.2);
-					osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3);
-					gain.gain.setValueAtTime(0.2, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.5);
-					break;
-
-				case 'drop':
-					osc.frequency.setValueAtTime(300, ctx.currentTime);
-					osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.15);
-					gain.gain.setValueAtTime(0.2, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.15);
-					break;
-
-				case 'click':
-					osc.frequency.setValueAtTime(800, ctx.currentTime);
-					gain.gain.setValueAtTime(0.15, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.05);
-					break;
-
-				case 'error':
-					osc.type = 'sawtooth';
-					osc.frequency.setValueAtTime(200, ctx.currentTime);
-					osc.frequency.setValueAtTime(150, ctx.currentTime + 0.1);
-					gain.gain.setValueAtTime(0.2, ctx.currentTime);
-					gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-					osc.start(ctx.currentTime);
-					osc.stop(ctx.currentTime + 0.2);
-					break;
-			}
-		} catch (e) {
-			// Audio not supported, silently fail
-		}
-	};
-
-	// Sound toggle button
-	var btnSound = document.getElementById('btn_sound_toggle');
-	if (btnSound) {
-		btnSound.addEventListener('click', function() {
-			soundEnabled = !soundEnabled;
-			this.textContent = soundEnabled ? '🔊' : '🔇';
-			this.title = soundEnabled ? 'Töne aus' : 'Töne an';
-			playSound('click');
-		});
-	}
-
 	// ─── Mascot System ──────────────────────────────────────────────────
 	var mascotMessages = {
 		welcome: [
@@ -203,7 +108,6 @@
 			popup.querySelector('.achievement-text').textContent = achievements[id].text;
 			popup.classList.remove('hidden');
 			popup.classList.add('visible');
-			playSound('win');
 
 			setTimeout(function() {
 				popup.classList.remove('visible');
@@ -236,7 +140,6 @@
 				advanceWizard(2);
 				showMascotMessage('modelSelected');
 				earnAchievement('first_model');
-				playSound('success');
 
 				// Show quick play bar
 				if (quickPlayBar) quickPlayBar.style.display = 'flex';
@@ -260,7 +163,6 @@
 			advanceWizard(3);
 			showMascotMessage('gameLoaded');
 			earnAchievement('first_game');
-			playSound('success');
 
 			// If no code loaded, load the first example
 			var dslEditor = document.getElementById('dsl_editor');
@@ -283,7 +185,6 @@
 				var modal = document.getElementById('example_gallery_modal');
 				if (modal) modal.classList.add('visible');
 			}
-			playSound('click');
 		});
 	}
 
@@ -297,7 +198,6 @@
 				var modal = document.getElementById('example_gallery_modal');
 				if (modal) modal.classList.add('visible');
 			}
-			playSound('click');
 		});
 	}
 
@@ -319,14 +219,12 @@
 	if (btnUndo) {
 		btnUndo.addEventListener('click', function() {
 			if (undoStack.length === 0) {
-				playSound('error');
 				return;
 			}
 			var prev = undoStack.pop();
 			if (typeof window.loadCodeToBlocks === 'function') {
 				window.loadCodeToBlocks(prev);
 			}
-			playSound('pop');
 		});
 	}
 
@@ -339,7 +237,6 @@
 				if (typeof window.loadCodeToBlocks === 'function') {
 					window.loadCodeToBlocks('');
 				}
-				playSound('drop');
 			}
 		});
 	}
@@ -354,7 +251,6 @@
 					if (blocks.length >= 1) earnAchievement('first_block');
 					if (blocks.length >= 5) earnAchievement('five_blocks');
 				}
-				playSound('pop');
 				showMascotMessage('blockAdded');
 				window.pushUndo();
 				resetIdleTimer();
@@ -387,7 +283,6 @@
 				// Simulate double-click (add to workspace)
 				var dblClick = new MouseEvent('dblclick', { bubbles: true });
 				block.dispatchEvent(dblClick);
-				playSound('pop');
 			}
 		});
 	}

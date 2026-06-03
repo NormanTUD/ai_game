@@ -75,10 +75,6 @@
     <div class="topbar-item" id="model_labels_info" style="display:none;">
         <span id="model_labels_chips"></span>
     </div>
-    <!-- 🔊 Sound toggle -->
-    <div class="topbar-item">
-        <button id="btn_sound_toggle" class="icon-btn" title="Töne an/aus">🔊</button>
-    </div>
 </div>
 
 <!-- 🎮 BIG PLAY BUTTON (appears after model selected) -->
