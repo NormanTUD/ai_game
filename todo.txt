@@ -1,7 +1,6 @@
 Überarbeitungen SSP Teil: Logik
 
     prinzipiell:
-        ggf. Höhe der Elemente reduzieren, damit man im einfachsten Fall möglichst nicht scrollen muss
         Reduktion auf Bausteine, die tatsächlich benötigt werden -> Ablenkung reduzieren
     Bausteine: was ist links bzw. rechts im Bild
     Baustein: Ausgabe strings/variablen -> im Editor Inputfeld mit größerer Breite
