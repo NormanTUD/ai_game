@@ -1,4 +1,3 @@
 Überarbeitungen SSP Teil: Logik
 
     Bausteine: was ist links bzw. rechts im Bild
-    Baustein if: wie selbst vergebene Variablen verwenden?
