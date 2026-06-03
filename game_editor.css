@@ -8,7 +8,6 @@
 
 /* ─── Reset & Base ───────────────────────────────────────────────────── */
 #game_editor_page {
-    max-width: 1440px;
     margin: 0 auto;
     padding: 16px 20px;
     font-family: 'Nunito', 'Baloo 2', 'Segoe UI', sans-serif;
