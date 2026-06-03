@@ -2486,6 +2486,7 @@ button:active {
     opacity: 1 !important;
     min-height: 100px;
     overflow-y: auto !important;
+    user-select: none;
 }
 
 #block_workspace .workspace-block {
