@@ -230,4 +230,8 @@
 <script src="visual_blocks.js"></script>
 <script src="game_editor_engine.js"></script>
 
+<script>
+	$("#game_model_select").val("none").trigger("change")
+</script>
+
 <?php include_once("footer.php"); ?>
