@@ -725,7 +725,6 @@
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    max-height: 200px;
     line-height: 1.6;
     font-weight: 600;
 }
