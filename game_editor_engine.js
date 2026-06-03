@@ -160,6 +160,7 @@
 	function showVideoElement() {
 		if (camPlaceholder) camPlaceholder.style.display = 'none';
 		video.style.display = 'block';
+		video.style.transform = 'scaleX(-1)';
 	}
 
 	async function startGameWebcam() {
@@ -486,8 +487,11 @@
 		if (best.score < confThreshold) return null;
 		var raw = boxToNormalized(boxArr[0], boxArr[1], boxArr[2], boxArr[3], modelWidth, modelHeight);
 		var clamped = clampBox(raw);
+		// Mirror x-coordinates horizontally
+		var mirroredXMin = 1 - clamped.xMax;
+		var mirroredXMax = 1 - clamped.xMin;
 		return {
-			xMin: clamped.xMin, yMin: clamped.yMin, xMax: clamped.xMax, yMax: clamped.yMax,
+			xMin: mirroredXMin, yMin: clamped.yMin, xMax: mirroredXMax, yMax: clamped.yMax,
 			score: best.score, label: getLabelForClass(best.classIdx)
 		};
 	}
