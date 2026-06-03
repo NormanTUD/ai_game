@@ -3,5 +3,4 @@
     prinzipiell:
         Reduktion auf Bausteine, die tatsächlich benötigt werden -> Ablenkung reduzieren
     Bausteine: was ist links bzw. rechts im Bild
-    Baustein: Ausgabe strings/variablen -> im Editor Inputfeld mit größerer Breite
     Baustein if: wie selbst vergebene Variablen verwenden?
