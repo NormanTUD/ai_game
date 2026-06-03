@@ -722,7 +722,6 @@
 				showInput.className = 'block-input';
 				showInput.value = (data && data.inputs && data.inputs[0]) || '"Hallo!"';
 				showInput.placeholder = 'Text oder Variable';
-				showInput.style.width = '120px';
 				content.appendChild(showInput);
 
 				var styleOpts = [

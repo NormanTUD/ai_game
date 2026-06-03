@@ -515,6 +515,11 @@
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.block-input {
+	width: 80%;
+	min-width: 120px;
+}
+
 .block-select:focus,
 .block-input:focus {
     outline: none;
