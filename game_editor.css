@@ -13,7 +13,6 @@
     font-family: 'Nunito', 'Baloo 2', 'Segoe UI', sans-serif;
     color: #3a3a5c;
     background: linear-gradient(135deg, #e8f4fd 0%, #fce4fc 30%, #fff8e1 60%, #e8fce8 100%);
-    min-height: 100vh;
     position: relative;
     overflow-x: hidden;
 }
