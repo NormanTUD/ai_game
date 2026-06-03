@@ -223,7 +223,6 @@
 
 <script>
 $(document).ready(function() {
-    // Kleines Timeout, damit dynamisch geladene Optionen sicher im DOM existieren
     setTimeout(function() {
         var $select = $('#game_model_select');
         var $validOptions = $select.find('option:not([value="none"])');
@@ -232,30 +231,62 @@ $(document).ready(function() {
         if ($validOptions.length === 1) {
             var exactValue = $validOptions.val();
             
-            // 1. Wert im Select-Feld setzen
+            // Modell auswählen und Event nativ feuern
             $select.val(exactValue);
+            var nativeSelectElement = $select[0];
+            if (nativeSelectElement) {
+                nativeSelectElement.dispatchEvent(new Event('change', { bubbles: true }));
+            }
             
-            // 2. NATIVES JavaScript-Event erzwingen (startet das Hintergrundprogramm sicher)
-            var nativeSelectElement = $select[0]; // Holt das echte DOM-Element aus jQuery
-            var changeEvent = new Event('change', { bubbles: true });
-            nativeSelectElement.dispatchEvent(changeEvent);
-            
-            // 3. Kamera und Slider einblenden, Modell-Auswahl verstecken
+            // UI Controls anpassen
             $("#camera_selector_wrapper, #confidence_wrapper").show();
             $(".topbar-model").hide();
+
+            // ─── WIZARD ANPASSUNG FÜR 1 MODELL ───
+            // 1. Verstecke Schritt 1 und den ersten Connector
+            var $step1 = $('.wizard-step[data-step="1"]');
+            $step1.hide();
+            $step1.next('.wizard-connector').hide();
+            
+            // 2. Entferne altes "active" und nummeriere sichtbare Schritte neu
+            $('.wizard-step').removeClass('active');
+            
+            $('.wizard-step:visible').each(function(index) {
+                // Setze die neue Nummer (1, 2, etc.)
+                $(this).find('.step-number').text(index + 1);
+                
+                // Der neue erste sichtbare Schritt wird aktiv
+                if (index === 0) {
+                    $(this).addClass('active');
+                }
+            });
         } 
         // Fall B: Es gibt MULTIPLE Modelle (oder keines)
         else {
             $(".topbar-model").show();
             $select.val("none");
             
-            // Auch hier das native Event feuern
             var nativeSelectElement = $select[0];
             if (nativeSelectElement) {
                 nativeSelectElement.dispatchEvent(new Event('change', { bubbles: true }));
             }
+
+            // ─── WIZARD BACKUP (Sicherheits-Reset für mehrere Modelle) ───
+            var $step1 = $('.wizard-step[data-step="1"]');
+            $step1.show();
+            $step1.next('.wizard-connector').show();
+            
+            $('.wizard-step').each(function() {
+                var originalStep = $(this).attr('data-step');
+                $(this).find('.step-number').text(originalStep);
+                if(originalStep === "1") {
+                    $(this).addClass('active');
+                } else {
+                    $(this).removeClass('active');
+                }
+            });
         }
-    }, 50); // 50 Millisekunden Verzögerung reichen völlig aus
+    }, 50);
 });
 </script>
 
