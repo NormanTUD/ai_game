@@ -110,6 +110,8 @@
             </div>
         </div>
 
+        <div id="game_status">Status: Wähle oben eine KI zum Starten 👆</div>
+
         <div class="preview-card output-card">
             <h3>📋 Was passiert?</h3>
             <div id="game_output">🎮 Willkommen auf deinem KI-Spielplatz!
@@ -122,8 +124,6 @@
 </div>
             <button id="btn_clear_output" class="small-btn" title="Löschen">🗑 Leeren</button>
         </div>
-
-        <div id="game_status">Status: Wähle oben eine KI zum Starten 👆</div>
     </div>
 </div>
 
