@@ -2,11 +2,9 @@
 
     prinzipiell:
         Kameraausgabe spiegeln
-        Bildschirmbreite wird nicht ausgenutzt
         Elemente raus: Ton, Genauigkeit
         ggf. Höhe der Elemente reduzieren, damit man im einfachsten Fall möglichst nicht scrollen muss
         Reduktion auf Bausteine, die tatsächlich benötigt werden -> Ablenkung reduzieren
-        Button Spiel starten wird nicht gebraucht. Die Bausteine können instantan ausgeführt werden.
     Bausteine: was ist links bzw. rechts im Bild
     Baustein: Ausgabe strings/variablen -> im Editor Inputfeld mit größerer Breite
     Baustein if: wie selbst vergebene Variablen verwenden?
