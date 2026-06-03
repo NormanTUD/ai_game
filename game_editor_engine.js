@@ -1459,28 +1459,10 @@
 			'  show_text "👀 Erkannt: " + aktuell + " | Rekord: " + rekord normal\n';
 	}
 
-	function buildCollectExample() {
-		return '# ══ SAMMEL-CHALLENGE ══\n' +
-			'aktuell = highest_conf_detection\n' +
-			'if aktuell == "none"\n' +
-			'  show_text "🎯 Zeige ein Objekt! Punkte: " + punkte normal\n' +
-			'elif aktuell != letztes\n' +
-			'  punkte += 10\n' +
-			'  streak += 1\n' +
-			'  bonus = streak * 5\n' +
-			'  punkte += bonus\n' +
-			'  letztes = aktuell\n' +
-			'  show_text "✅ " + aktuell + "! +" + (10 + bonus) + " Pkt | Streak: " + streak + "x" winner\n' +
-			'else\n' +
-			'  streak = 0\n' +
-			'  show_text "🔄 Schon gezeigt! Wechsle! Punkte: " + punkte draw\n';
-	}
-
 	function buildExampleMeta(l) {
 		return [
 			{ id: 'rps', name: '✊✌️✋ Schere Stein Papier', icon: '✊', difficulty: '⭐', description: 'Spiele gegen einen Freund! Haltet beide eure Hände in die Kamera.', preview: '👈 Spieler 1 | Spieler 2 👉', color: '#4fc3f7', code: buildRPSExample(l) },
 			{ id: 'counter', name: '📊 Rekord-Jäger', icon: '🏆', difficulty: '⭐', description: 'Wie viele Objekte kannst du gleichzeitig zeigen? Jage den Rekord!', preview: '🏆 Zeige so viele Objekte wie möglich!', color: '#ffb74d', code: buildCounterExample() },
-			{ id: 'collect', name: '🎯 Sammel-Challenge', icon: '🎯', difficulty: '⭐⭐', description: 'Zeige verschiedene Objekte nacheinander! Gleiches Objekt zweimal = keine Punkte!', preview: '🔄 Immer wechseln für Punkte!', color: '#66bb6a', code: buildCollectExample() }
 		];
 	}
 
