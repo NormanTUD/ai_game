@@ -80,7 +80,6 @@
             <div class="editor-actions">
                 <button id="btn_show_examples_small" title="Beispiele">🎮 Spiele-Galerie</button>
                 <button id="btn_undo" title="Rückgängig">↩️</button>
-                <button id="btn_show_code" title="Code anzeigen">👁</button>
                 <button id="btn_clear_workspace" title="Alles löschen">🗑</button>
             </div>
         </div>
