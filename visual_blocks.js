@@ -92,6 +92,8 @@
 				{ type: 'if',    icon: '❓', text: 'Wenn ... dann ...' },
 				{ type: 'elif',  icon: '🤔', text: 'Sonst wenn ...' },
 				{ type: 'else',  icon: '🤷', text: 'Ansonsten ...' },
+				{ type: 'while', icon: '🔁', text: 'Solange ... wiederhole' },
+				{ type: 'for',   icon: '🔄', text: 'Für ... von 0 bis ...' },
 			],
 			help: '🎓 Hier entscheidet dein Programm, was es tun soll!'
 		},
