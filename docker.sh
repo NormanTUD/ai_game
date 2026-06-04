@@ -135,7 +135,7 @@ networks:
 EOL
 
 if ! docker compose &>/dev/null; then
-    sudo apt-get install -y docker-compose-plugin || sudo apt-get install -y docker-compose-v2
+    sudo apt-get install -y docker-compose
 fi
 
 CMD="docker compose"
