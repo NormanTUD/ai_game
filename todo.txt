@@ -1,3 +1,5 @@
 Überarbeitungen SSP Teil: Logik
 
     Bausteine: was ist links bzw. rechts im Bild
+
+    emojis anpassen
