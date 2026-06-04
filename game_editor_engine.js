@@ -1426,22 +1426,22 @@
 			'# Regeln: Schere schneidet Papier,\n' +
 			'# Papier wickelt Stein ein,\n' +
 			'# Stein macht Schere kaputt.\n' +
-			'spieler = leftmost_detection\n' +
-			'gegner = rightmost_detection\n' +
+			'spieler1 = leftmost_detection\n' +
+			'spieler2 = rightmost_detection\n' +
 			'if detection_count != 2\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
-			'elif spieler == "none" or gegner == "none"\n' +
+			'elif spieler1 == "none" or spieler2 == "none"\n' +
 			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
-			'elif spieler == gegner\n' +
-			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler draw\n' +
-			'elif spieler == "' + l.l1 + '" and gegner == "' + l.l3 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-			'elif spieler == "' + l.l3 + '" and gegner == "' + l.l2 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
-			'elif spieler == "' + l.l2 + '" and gegner == "' + l.l1 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler + " schlägt " + gegner winner\n' +
+			'elif spieler1 == spieler2\n' +
+			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler1 draw\n' +
+			'elif spieler1 == "' + l.l1 + '" and spieler2 == "' + l.l3 + '"\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
+			'elif spieler1 == "' + l.l3 + '" and spieler2 == "' + l.l2 + '"\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
+			'elif spieler1 == "' + l.l2 + '" and spieler2 == "' + l.l1 + '"\n' +
+			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
 			'else\n' +
-			'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + gegner + " schlägt " + spieler loser\n';
+			'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + spieler2 + " schlägt " + spieler1 loser\n';
 	}
 
 	function buildCounterExample() {
