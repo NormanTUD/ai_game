@@ -10,7 +10,7 @@
 <div id="game_editor_page">
 
 <!-- 🌟 MASCOT & WELCOME -->
-<div id="welcome_hero">
+<div id="welcome_hero" style="display: none">
     <div class="mascot-container">
         <div id="mascot">🤖</div>
         <div class="speech-bubble" id="mascot_speech">
@@ -55,7 +55,7 @@
         <div class="panel-header">
             <h3>🧩 Mein Programm</h3>
             <div class="editor-actions">
-                <button id="btn_show_examples_small" title="Beispiele">🎮 Spiele-Galerie</button>
+                <button id="btn_show_examples_small" title="Beispiele" style="display: none">🎮 Spiele-Galerie</button>
                 <button id="btn_undo" title="Rückgängig">↩️</button>
                 <button id="btn_clear_workspace" title="Alles löschen">🗑</button>
             </div>
@@ -70,8 +70,7 @@
                     <span class="big-arrow">🎮</span>
                     <strong>Hier baust du dein Programm!</strong><br><br>
                     <span class="placeholder-hint">
-                        ⬅️ Ziehe Blöcke von links hierher<br>
-                        oder klicke auf <strong>🎮 Spiele-Galerie</strong>
+                        ⬅️ Ziehe Blöcke von links hierher
                     </span>
                 </div>
             </div>
@@ -120,8 +119,6 @@
 👋 So einfach geht's:
 1️⃣ Wähle oben eine KI aus
 3️⃣ Halte Dinge vor die Kamera – und spiele!
-
-💡 Tipp: Probiere die Spiele-Galerie aus!
 </div>
         </div>
     </div>
