@@ -390,8 +390,13 @@
 				indent = Math.max(0, indent - 1);
 			}
 
-			blocks[i].setAttribute('data-indent', indent);
-			blocks[i].style.marginLeft = (indent * 28) + 'px';
+			if (!blocks[i].hasAttribute('data-manual-indent')) {
+				blocks[i].setAttribute('data-indent', indent);
+				blocks[i].style.marginLeft = (indent * 28) + 'px';
+			}
+
+			// Update outdent button visibility
+			updateIndentButtonVisibility(blocks[i]);
 
 			if (type === 'if' || type === 'elif' || type === 'else' || type === 'while' || type === 'for') {
 				indent++;
@@ -580,6 +585,15 @@
 		}
 		return select;
 	}
+	
+	// Show/hide indent buttons based on current indent level
+	function updateIndentButtonVisibility(block) {
+		var currentIndent = parseInt(block.getAttribute('data-indent')) || 0;
+		var outdentBtn = block.querySelector('.outdent-btn');
+		if (outdentBtn) {
+			outdentBtn.style.display = currentIndent > 0 ? 'flex' : 'none';
+		}
+	}
 
 	// ─── Create workspace block ─────────────────────────────────────────
 	function createWorkspaceBlock(type, data) {
@@ -653,6 +667,72 @@
 			syncBlocksToDSL();
 		});
 		block.appendChild(delBtn);
+
+		// ─── Indent/Outdent buttons (visible on hover) ───────────────────────
+		var indentControls = document.createElement('div');
+		indentControls.className = 'block-indent-controls';
+		indentControls.setAttribute('draggable', 'false');
+
+		// Outdent (move left)
+		var outdentBtn = document.createElement('button');
+		outdentBtn.className = 'block-indent-btn outdent-btn';
+		outdentBtn.textContent = '◀';
+		outdentBtn.title = 'Einrückung verringern';
+		outdentBtn.setAttribute('draggable', 'false');
+		outdentBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+		outdentBtn.addEventListener('dragstart', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+		});
+		outdentBtn.addEventListener('click', function(e) {
+			e.stopPropagation();
+			e.preventDefault();
+			var currentIndent = parseInt(block.getAttribute('data-indent')) || 0;
+			if (currentIndent > 0) {
+				block.setAttribute('data-manual-indent', 'true');
+				block.setAttribute('data-indent', currentIndent - 1);
+				block.style.marginLeft = ((currentIndent - 1) * 28) + 'px';
+				syncBlocksToDSL();
+				updateIndentButtonVisibility(block);
+			}
+		});
+
+		indentControls.appendChild(outdentBtn);
+
+		// Indent (move right) — only if it makes sense
+		var indentBtn = document.createElement('button');
+		indentBtn.className = 'block-indent-btn indent-btn';
+		indentBtn.textContent = '▶';
+		indentBtn.title = 'Einrückung erhöhen';
+		indentBtn.setAttribute('draggable', 'false');
+		indentBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+		indentBtn.addEventListener('dragstart', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+		});
+		indentBtn.addEventListener('click', function(e) {
+			e.stopPropagation();
+			e.preventDefault();
+			var allBlocks = Array.from(workspace.querySelectorAll('.workspace-block'));
+			var myIndex = allBlocks.indexOf(block);
+			if (myIndex > 0) {
+				var prevBlock = allBlocks[myIndex - 1];
+				var prevType = prevBlock.getAttribute('data-block-type');
+				var prevIndent = parseInt(prevBlock.getAttribute('data-indent')) || 0;
+				var currentIndent = parseInt(block.getAttribute('data-indent')) || 0;
+				var containerTypes = ['if', 'elif', 'else', 'while', 'for'];
+				if (containerTypes.indexOf(prevType) !== -1 && currentIndent <= prevIndent) {
+					block.setAttribute('data-manual-indent', 'true');  // ← ADD THIS
+					block.setAttribute('data-indent', currentIndent + 1);
+					block.style.marginLeft = ((currentIndent + 1) * 28) + 'px';
+					syncBlocksToDSL();
+				}
+			}
+		});
+
+		indentControls.appendChild(indentBtn);
+
+		block.appendChild(indentControls);
 
 		// Input/select change listeners
 		var elements = block.querySelectorAll('input, select');
@@ -772,6 +852,8 @@
 			clearDropIndicators();
 			syncBlocksToDSL();
 		});
+
+		updateIndentButtonVisibility(block);
 
 		return block;
 	}

@@ -488,6 +488,7 @@
     gap: 5px;
     flex-wrap: wrap;
     flex: 1;
+    padding-left: 35px;
 }
 
 .block-content .bi {
@@ -2237,41 +2238,52 @@ button:active {
 }
 
 /* ═══ FORCE WORKSPACE BLOCKS VISIBLE ═══ */
-#block_workspace {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    min-height: 100px;
-    overflow-y: auto !important;
-    user-select: none;
-}
-
 #block_workspace .workspace-block {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: relative !important;
-    height: auto !important;
-    overflow: visible !important;
-    transform: none !important;
-    pointer-events: auto !important;
+	display: flex !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+	position: relative !important;
+	height: auto !important;
+	overflow: visible !important;
+	transform: none !important;
+	pointer-events: auto !important;
+	padding: 8px 12px 8px 12px;  /* normal padding, no extra left */
 }
 
-/* When game is running, do NOT hide the block workspace */
-#game_editor_page.game-running #block_workspace,
-#game_editor_page.game-running #block_workspace .workspace-block {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    animation-play-state: running !important;
+/* Indent controls - inside the block, left side */
+.block-indent-controls {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    gap: 2px;
+    flex-direction: row;
+    z-index: 5;
 }
 
-/* Ensure the editor panel (parent of block_workspace) stays visible alongside webcam */
-#game_editor_page.game-running .editor-panel,
-#game_editor_page.game-running #code_editor_area,
-#game_editor_page.game-running [class*="editor"] {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
+.workspace-block:hover .block-indent-controls {
+    display: flex;
+}
+
+.block-indent-btn {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 4px;
+    background: rgba(108, 62, 193, 0.15);
+    color: #5a4a8a;
+    cursor: pointer;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.1s;
+    padding: 0;
+}
+
+.block-indent-btn:hover {
+    background: rgba(108, 62, 193, 0.35);
+    color: #6c3ec1;
+    transform: scale(1.15);
 }
