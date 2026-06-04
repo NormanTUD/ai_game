@@ -115,6 +115,7 @@
 			],
 			help: '🎓 Speichere Punkte, Ergebnisse und mehr!'
 		},
+		/*
 		celebrations: {
 			label: '🎉 Feiern',
 			color: '#ffd740',
@@ -130,6 +131,7 @@
 			],
 			help: '🎓 Konfetti!'
 		}
+		*/
 	};
 
 
