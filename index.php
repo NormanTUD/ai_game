@@ -223,6 +223,32 @@ $(document).ready(function() {
             }
         }
     }, 50);
+
+    setTimeout(function() {
+        var startCode = [
+            '# Definition von Funktionen oder Variablen',
+            'links = leftmost_detection',
+            'rechts = rightmost_detection',
+            '',
+            '# Variablen zuweisen',
+            'spieler1 = links',
+            'spieler2 = rechts',
+            '',
+            '# Textausgabe',
+            'print "Spieler 1 zeigt: " + spieler1',
+            'print "Spieler 2 zeigt: " + spieler2',
+            '',
+            '# Logische Überprüfung',
+            'if spieler1 == spieler2',
+            '  show_text "Unentschieden! 🤝" draw',
+            'elif spieler1 != spieler2',
+            '  show_text "Etwas anderes als unentschieden!" normal',
+        ].join('\n');
+
+        if (typeof window.loadCodeToBlocks === 'function') {
+            window.loadCodeToBlocks(startCode);
+        }
+    }, 200);  // Kurze Verzögerung damit visual_blocks.js fertig initialisiert ist
 });
 </script>
 
