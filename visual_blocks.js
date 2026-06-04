@@ -590,8 +590,28 @@
 	function updateIndentButtonVisibility(block) {
 		var currentIndent = parseInt(block.getAttribute('data-indent')) || 0;
 		var outdentBtn = block.querySelector('.outdent-btn');
+		var indentBtn = block.querySelector('.indent-btn');
+
+		// Hide outdent if already at level 0
 		if (outdentBtn) {
 			outdentBtn.style.display = currentIndent > 0 ? 'flex' : 'none';
+		}
+
+		// Hide indent if it can't go deeper
+		if (indentBtn) {
+			var allBlocks = Array.from(workspace.querySelectorAll('.workspace-block'));
+			var myIndex = allBlocks.indexOf(block);
+			var canIndent = false;
+			if (myIndex > 0) {
+				var prevBlock = allBlocks[myIndex - 1];
+				var prevType = prevBlock.getAttribute('data-block-type');
+				var prevIndent = parseInt(prevBlock.getAttribute('data-indent')) || 0;
+				var containerTypes = ['if', 'elif', 'else', 'while', 'for'];
+				if (containerTypes.indexOf(prevType) !== -1 && currentIndent <= prevIndent) {
+					canIndent = true;
+				}
+			}
+			indentBtn.style.display = canIndent ? 'flex' : 'none';
 		}
 	}
 
