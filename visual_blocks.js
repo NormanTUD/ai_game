@@ -811,44 +811,44 @@
 
 		switch (type) {
 			case 'get_left':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>links</strong> = was links ist';
+				content.innerHTML = '<span class="bi">👈</span> <strong>links</strong> = was links ist';
 				break;
 			case 'get_right':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>rechts</strong> = was rechts ist';
+				content.innerHTML = '<span class="bi">👉</span> <strong>rechts</strong> = was rechts ist';
 				break;
 			case 'get_count':
 				content.innerHTML = '<span class="bi">🔢</span> <strong>anzahl</strong> = wie viele?';
 				break;
 			case 'get_top':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>oben</strong> = was oben ist';
+				content.innerHTML = '<span class="bi">👈</span> <strong>oben</strong> = was oben ist';
 				break;
 			case 'get_bottom':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>unten</strong> = was unten ist';
+				content.innerHTML = '<span class="bi">👈</span> <strong>unten</strong> = was unten ist';
 				break;
 			case 'get_largest':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>größtes</strong> = größte Erkennung';
+				content.innerHTML = '<span class="bi">👈</span> <strong>größtes</strong> = größte Erkennung';
 				break;
 			case 'get_smallest':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>kleinstes</strong> = kleinste';
+				content.innerHTML = '<span class="bi">👈</span> <strong>kleinstes</strong> = kleinste';
 				break;
 			case 'get_best':
-				content.innerHTML = '<span class="bi">🎯</span> <strong>bestes</strong> = sicherste';
+				content.innerHTML = '<span class="bi">👈</span> <strong>bestes</strong> = sicherste';
 				break;
 
 			case 'if':
 			case 'elif':
 				var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
-				var icon = type === 'if' ? '🔶' : '🔷';
+				var icon = type === 'if' ? '❓' : '🤔';
 				var condData = (data && data.condition) || {};
 
 				content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
 
-				// LEFT side — ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
+				// LEFT side
 				var leftVal = condData.left || 'links';
 				var leftOpts = getLeftSideOptions();
 				var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
 				if (leftIsCustom) {
-					leftOpts.unshift({ value: leftVal, label: '📝 ' + leftVal });
+					leftOpts.unshift({ value: leftVal, label: '📌 ' + leftVal });
 				}
 				var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
 				content.appendChild(leftSelect);
@@ -861,7 +861,7 @@
 				var rightOpts = getCompareValues();
 				var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
 				if (rightIsCustom) {
-					rightOpts.unshift({ value: rightVal, label: '📝 ' + rightVal });
+					rightOpts.unshift({ value: rightVal, label: '📌 ' + rightVal });
 				}
 				var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
 				content.appendChild(rightSelect);
@@ -881,12 +881,11 @@
 				cond2Wrapper.className = 'cond2-wrapper';
 				cond2Wrapper.style.display = logicVal ? 'inline' : 'none';
 
-				// ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
 				var left2Val = condData.left2 || 'rechts';
 				var left2Opts = getLeftSideOptions();
 				var left2IsCustom = !left2Opts.some(function(o) { return o.value === left2Val; });
 				if (left2IsCustom) {
-					left2Opts.unshift({ value: left2Val, label: '📝 ' + left2Val });
+					left2Opts.unshift({ value: left2Val, label: '📌 ' + left2Val });
 				}
 				var left2Select = buildSelect(left2Opts, left2Val, 'cond-left');
 				cond2Wrapper.appendChild(left2Select);
@@ -898,7 +897,7 @@
 				var right2Opts = getCompareValues();
 				var right2IsCustom = !right2Opts.some(function(o) { return o.value === right2Val; });
 				if (right2IsCustom) {
-					right2Opts.unshift({ value: right2Val, label: '📝 ' + right2Val });
+					right2Opts.unshift({ value: right2Val, label: '📌 ' + right2Val });
 				}
 				var right2Select = buildSelect(right2Opts, right2Val, 'cond-value');
 				cond2Wrapper.appendChild(right2Select);
@@ -921,12 +920,11 @@
 				var wCondData = (data && data.condition) || {};
 				content.innerHTML = '<span class="bi">🔁</span> <span class="bk">solange</span> ';
 
-				// ✅ GEFIXT: getLeftSideOptions() statt sensorVars.slice()
 				var wLeftVal = wCondData.left || 'links';
 				var wLeftOpts = getLeftSideOptions();
 				var wLeftIsCustom = !wLeftOpts.some(function(o) { return o.value === wLeftVal; });
 				if (wLeftIsCustom) {
-					wLeftOpts.unshift({ value: wLeftVal, label: '📝 ' + wLeftVal });
+					wLeftOpts.unshift({ value: wLeftVal, label: '📌 ' + wLeftVal });
 				}
 				var wLeftSelect = buildSelect(wLeftOpts, wLeftVal, 'cond-left');
 				content.appendChild(wLeftSelect);
@@ -938,7 +936,7 @@
 				var wRightOpts = getCompareValues();
 				var wRightIsCustom = !wRightOpts.some(function(o) { return o.value === wRightVal; });
 				if (wRightIsCustom) {
-					wRightOpts.unshift({ value: wRightVal, label: '📝 ' + wRightVal });
+					wRightOpts.unshift({ value: wRightVal, label: '📌 ' + wRightVal });
 				}
 				var wRightSelect = buildSelect(wRightOpts, wRightVal, 'cond-value');
 				content.appendChild(wRightSelect);
@@ -948,39 +946,6 @@
 				repeatSpan.textContent = ' wiederhole';
 				content.appendChild(repeatSpan);
 				break;
-
-
-			case 'while':
-				var wCondData = (data && data.condition) || {};
-				content.innerHTML = '<span class="bi">🔁</span> <span class="bk">solange</span> ';
-
-				var wLeftVal = wCondData.left || 'links';
-				var wLeftOpts = getLeftSideOptions();
-				var wLeftIsCustom = !wLeftOpts.some(function(o) { return o.value === wLeftVal; });
-				if (wLeftIsCustom) {
-					wLeftOpts.unshift({ value: wLeftVal, label: '📝 ' + wLeftVal });
-				}
-				var wLeftSelect = buildSelect(wLeftOpts, wLeftVal, 'cond-left');
-				content.appendChild(wLeftSelect);
-
-				var wOpSelect = buildSelect(operators, wCondData.op || '!=', 'cond-op');
-				content.appendChild(wOpSelect);
-
-				var wRightVal = wCondData.right || '"none"';
-				var wRightOpts = getCompareValues();
-				var wRightIsCustom = !wRightOpts.some(function(o) { return o.value === wRightVal; });
-				if (wRightIsCustom) {
-					wRightOpts.unshift({ value: wRightVal, label: '📝 ' + wRightVal });
-				}
-				var wRightSelect = buildSelect(wRightOpts, wRightVal, 'cond-value');
-				content.appendChild(wRightSelect);
-
-				var repeatSpan = document.createElement('span');
-				repeatSpan.className = 'bk';
-				repeatSpan.textContent = ' wiederhole';
-				content.appendChild(repeatSpan);
-				break;
-
 
 			case 'for':
 				content.innerHTML = '<span class="bi">🔄</span> <span class="bk">für</span> ';
@@ -1006,7 +971,7 @@
 				break;
 
 			case 'else':
-				content.innerHTML = '<span class="bi">⬜</span> <span class="bk">sonst</span>';
+				content.innerHTML = '<span class="bi">🤷</span> <span class="bk">sonst</span>';
 				break;
 
 			case 'print':
@@ -1021,7 +986,7 @@
 				break;
 
 			case 'show_text':
-				content.innerHTML = '<span class="bi">📺</span> <span class="bk">zeige</span> ';
+				content.innerHTML = '<span class="bi">🖥️</span> <span class="bk">zeige</span> ';
 				var showInput = document.createElement('input');
 				showInput.type = 'text';
 				showInput.className = 'block-input';
@@ -1040,7 +1005,7 @@
 				break;
 
 			case 'set_var':
-				content.innerHTML = '<span class="bi">📦</span> <span class="bk">setze</span> ';
+				content.innerHTML = '<span class="bi">📝</span> <span class="bk">setze</span> ';
 				var vnameInput = document.createElement('input');
 				vnameInput.type = 'text';
 				vnameInput.className = 'block-input block-input-sm';
@@ -1064,7 +1029,7 @@
 				break;
 
 			case 'change_var':
-				content.innerHTML = '<span class="bi">➕</span> <span class="bk">ändere</span> ';
+				content.innerHTML = '<span class="bi">🔼</span> <span class="bk">ändere</span> ';
 				var cvnameInput = document.createElement('input');
 				cvnameInput.type = 'text';
 				cvnameInput.className = 'block-input block-input-sm';
@@ -1096,7 +1061,7 @@
 				content.innerHTML = '<span class="bi">🎊</span> <strong>Konfetti!</strong> über die ganze Seite';
 				break;
 			case 'celebrate_fireworks':
-				content.innerHTML = '<span class="bi">🎆</span> <strong>Feuerwerk!</strong> am Himmel';
+				content.innerHTML = '<span class="bi">🏆</span> <strong>Feuerwerk!</strong> am Himmel';
 				break;
 			case 'celebrate_stars':
 				content.innerHTML = '<span class="bi">⭐</span> <strong>Sterne!</strong> explodieren';
