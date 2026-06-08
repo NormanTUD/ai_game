@@ -122,17 +122,47 @@
 
 	async function enumerateGameCameras() {
 		var select = document.getElementById('game_camera_select');
+		var wrapper = document.getElementById('camera_selector_wrapper');
 		try {
 			stopTempStream(await requestCameraPermission());
 		} catch (e) {
 			select.innerHTML = '<option value="">Kein Kamerazugriff</option>';
+			if (wrapper) {
+				wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Keine Kamera gefunden!</span>';
+				wrapper.style.display = 'inline-flex';
+			}
 			return;
 		}
 		try {
 			var devices = await navigator.mediaDevices.enumerateDevices();
-			populateCameraSelect(select, filterVideoDevices(devices));
+			var videoDevices = filterVideoDevices(devices);
+
+			if (videoDevices.length === 0) {
+				// 0 cameras: show a message
+				select.innerHTML = '<option value="">Keine Kamera</option>';
+				if (wrapper) {
+					wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Keine Kamera gefunden!</span>';
+					wrapper.style.display = 'inline-flex';
+				}
+			} else if (videoDevices.length === 1) {
+				// 1 camera: populate select but hide the wrapper
+				populateCameraSelect(select, videoDevices);
+				if (wrapper) {
+					wrapper.style.display = 'none';
+				}
+			} else {
+				// 2+ cameras: populate select and show the wrapper
+				populateCameraSelect(select, videoDevices);
+				if (wrapper) {
+					wrapper.style.display = 'inline-flex';
+				}
+			}
 		} catch (e) {
 			select.innerHTML = '<option value="">Kamera-Fehler</option>';
+			if (wrapper) {
+				wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Kamera-Fehler</span>';
+				wrapper.style.display = 'inline-flex';
+			}
 		}
 	}
 	enumerateGameCameras();
