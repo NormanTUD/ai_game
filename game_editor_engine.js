@@ -123,6 +123,7 @@
 	async function enumerateGameCameras() {
 		var select = document.getElementById('game_camera_select');
 		var wrapper = document.getElementById('camera_selector_wrapper');
+		var topbar = document.querySelector('.topbar-controls');
 		try {
 			stopTempStream(await requestCameraPermission());
 		} catch (e) {
@@ -131,6 +132,7 @@
 				wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Keine Kamera gefunden!</span>';
 				wrapper.style.display = 'inline-flex';
 			}
+			if (topbar) topbar.style.display = '';
 			return;
 		}
 		try {
@@ -138,24 +140,23 @@
 			var videoDevices = filterVideoDevices(devices);
 
 			if (videoDevices.length === 0) {
-				// 0 cameras: show a message
+				// 0 cameras: show topbar with a message
 				select.innerHTML = '<option value="">Keine Kamera</option>';
 				if (wrapper) {
 					wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Keine Kamera gefunden!</span>';
 					wrapper.style.display = 'inline-flex';
 				}
+				if (topbar) topbar.style.display = '';
 			} else if (videoDevices.length === 1) {
-				// 1 camera: populate select but hide the wrapper
+				// 1 camera: hide the ENTIRE topbar-controls
 				populateCameraSelect(select, videoDevices);
-				if (wrapper) {
-					wrapper.style.display = 'none';
-				}
+				if (wrapper) wrapper.style.display = 'none';
+				if (topbar) topbar.style.display = 'none';
 			} else {
-				// 2+ cameras: populate select and show the wrapper
+				// 2+ cameras: show topbar with camera selector
 				populateCameraSelect(select, videoDevices);
-				if (wrapper) {
-					wrapper.style.display = 'inline-flex';
-				}
+				if (wrapper) wrapper.style.display = 'inline-flex';
+				if (topbar) topbar.style.display = '';
 			}
 		} catch (e) {
 			select.innerHTML = '<option value="">Kamera-Fehler</option>';
@@ -163,6 +164,7 @@
 				wrapper.innerHTML = '<label>📷</label><span style="color:#e57373; font-size:0.9em;">⚠️ Kamera-Fehler</span>';
 				wrapper.style.display = 'inline-flex';
 			}
+			if (topbar) topbar.style.display = '';
 		}
 	}
 	enumerateGameCameras();
