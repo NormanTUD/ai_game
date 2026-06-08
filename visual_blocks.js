@@ -184,18 +184,36 @@
 			blockList.appendChild(helpDiv);
 		}
 
-		// ✅ ADD THIS instead:
+		// Model labels as boxed chips (only in sensing tab)
 		if (activeCategory === 'sensing' && modelLabels.length > 0) {
 			var hint = document.createElement('div');
 			hint.className = 'palette-sublabel';
 			hint.style.marginTop = '12px';
-			hint.style.fontSize = '0.68rem';
+			hint.style.fontSize = '0.72rem';
 			hint.style.color = '#a6adc8';
-			hint.style.lineHeight = '1.4';
-			hint.innerHTML = '💡 Dein Modell kennt: <strong>' + modelLabels.join(', ') + '</strong>';
+			hint.style.lineHeight = '1.6';
+
+			var labelLine = document.createElement('div');
+			labelLine.style.marginBottom = '4px';
+			labelLine.textContent = '💡 Dein Modell kennt:';
+			hint.appendChild(labelLine);
+
+			var chipsWrapper = document.createElement('div');
+			chipsWrapper.style.display = 'flex';
+			chipsWrapper.style.flexWrap = 'wrap';
+			chipsWrapper.style.gap = '4px';
+
+			var chipColors = ['#4fc3f7', '#ffb74d', '#ba68c8', '#66bb6a', '#e57373', '#ff8a65'];
+			for (var m = 0; m < modelLabels.length; m++) {
+				var chip = document.createElement('span');
+				chip.textContent = modelLabels[m];
+				chip.style.cssText = 'display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.72rem; font-weight:600; color:#fff; background:' + chipColors[m % chipColors.length] + ';';
+				chipsWrapper.appendChild(chip);
+			}
+
+			hint.appendChild(chipsWrapper);
 			blockList.appendChild(hint);
 		}
-
 
 		palette.appendChild(blockList);
 	}
