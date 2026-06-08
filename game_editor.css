@@ -559,7 +559,6 @@
 .block-delete:hover {
     color: #ef5350;
     background: rgba(239, 83, 80, 0.1);
-    transform: translateY(-50%) scale(1.2);
 }
 
 /* ─── Trash zone ─────────────────────────────────────────────────────── */
