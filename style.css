@@ -268,8 +268,18 @@ a:hover {
 }
 
 #tensor_monitor {
-    white-space: nowrap;       /* prevent text from wrapping */
-    margin-left: auto;
-    flex-shrink: 0;            /* don't let this shrink — keep it visible */
-    text-align: right;
+	white-space: nowrap;       /* prevent text from wrapping */
+	margin-left: auto;
+	flex-shrink: 0;            /* don't let this shrink — keep it visible */
+	text-align: right;
+}
+
+.block-delete {
+	pointer-events: auto;
+	position: relative;
+	z-index: 10;
+}
+
+.workspace-block.dragging .block-delete {
+	pointer-events: none;
 }
