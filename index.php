@@ -206,7 +206,6 @@ $(document).ready(function() {
             }
             
             // UI Controls anpassen
-            $("#camera_selector_wrapper, #confidence_wrapper").show();
             $(".topbar-model").hide();
         } 
         // Fall B: Es gibt MULTIPLE Modelle (oder keines)
