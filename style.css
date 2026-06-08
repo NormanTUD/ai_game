@@ -109,11 +109,6 @@ button {
 
 button:hover {
 	background-color: #45a049;
-	transform: translateY(-1px);
-}
-
-button:active {
-	transform: translateY(1px);
 }
 
 input, select {

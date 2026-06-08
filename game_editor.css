@@ -1735,7 +1735,6 @@ button:active {
 }
 
 .placeholder-btn:hover {
-    transform: translateY(-2px) scale(1.05);
     box-shadow: 0 6px 20px rgba(124, 77, 255, 0.4);
     animation: none;
 }
