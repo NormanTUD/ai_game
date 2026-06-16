@@ -1486,34 +1486,34 @@
 			'spieler1 = leftmost_detection\n' +
 			'spieler2 = rightmost_detection\n' +
 			'if detection_count != 2\n' +
-			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
+			'  show_text Zeigt beide eure Hände! ✊✌️✋ normal\n' +
 			'elif spieler1 == "none" or spieler2 == "none"\n' +
-			'  show_text "Zeigt beide eure Hände! ✊✌️✋" normal\n' +
+			'  show_text Zeigt beide eure Hände! ✊✌️✋ normal\n' +
 			'elif spieler1 == spieler2\n' +
-			'  show_text "UNENTSCHIEDEN! 🤝 Beide: " + spieler1 draw\n' +
+			'  show_text UNENTSCHIEDEN! 🤝 Beide: $spieler1 draw\n' +
 			'elif spieler1 == "' + l.l1 + '" and spieler2 == "' + l.l3 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
+			'  show_text 👈 SPIELER 1 GEWINNT! 🎉 $spieler1 schlägt $spieler2 winner\n' +
 			'elif spieler1 == "' + l.l3 + '" and spieler2 == "' + l.l2 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
+			'  show_text 👈 SPIELER 1 GEWINNT! 🎉 $spieler1 schlägt $spieler2 winner\n' +
 			'elif spieler1 == "' + l.l2 + '" and spieler2 == "' + l.l1 + '"\n' +
-			'  show_text "👈 SPIELER 1 GEWINNT! 🎉 " + spieler1 + " schlägt " + spieler2 winner\n' +
+			'  show_text 👈 SPIELER 1 GEWINNT! 🎉 $spieler1 schlägt $spieler2 winner\n' +
 			'else\n' +
-			'  show_text "👉 SPIELER 2 GEWINNT! 💪 " + spieler2 + " schlägt " + spieler1 loser\n';
+			'  show_text 👉 SPIELER 2 GEWINNT! 💪 $spieler2 schlägt $spieler1 loser\n';
 	}
 
 	function buildCounterExample() {
-		return '# ══ REKORD-JÄGER ══\n' +
+		return '# ═══ REKORD-JÄGER ═══\n' +
 			'aktuell = detection_count\n' +
 			'if aktuell > rekord\n' +
 			'  rekord = aktuell\n' +
 			'if aktuell > 0\n' +
 			'  gesamt += aktuell\n' +
 			'if aktuell == 0\n' +
-			'  show_text "🔍 Zeige Objekte! Rekord: " + rekord normal\n' +
+			'  show_text 🔍 Zeige Objekte! Rekord: $rekord normal\n' +
 			'elif aktuell == rekord\n' +
-			'  show_text "🏆 NEUER REKORD! " + rekord + " Objekte!" winner\n' +
+			'  show_text 🏆 NEUER REKORD! $rekord Objekte! winner\n' +
 			'else\n' +
-			'  show_text "👀 Erkannt: " + aktuell + " | Rekord: " + rekord normal\n';
+			'  show_text 👀 Erkannt: $aktuell | Rekord: $rekord normal\n';
 	}
 
 	function buildExampleMeta(l) {
