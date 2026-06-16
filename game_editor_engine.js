@@ -39,6 +39,13 @@
 	// OUTPUT HELPERS
 	// ═══════════════════════════════════════════════════════════════════════
 
+	function interpolateString(str, vars) {
+		return str.replace(/\$([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)/g, function(match, varName) {
+			if (vars.hasOwnProperty(varName)) return String(vars[varName]);
+			return match;
+		});
+	}
+
 	function formatOutputLine(text) {
 		return '[' + new Date().toLocaleTimeString() + '] ' + text;
 	}
@@ -902,9 +909,15 @@
 		if (!line.startsWith('show_text ')) return false;
 		var showArgs = parseShowTextArgs(line);
 		if (!showArgs) return false;
-		var msg = evaluateExpression(showArgs.message, vars);
+		var msg = evaluateShowTextMessage(showArgs.message, vars);
 		state.showTextCommands.push({ message: String(msg), style: showArgs.style || 'normal' });
 		return true;
+	}
+
+	function evaluateShowTextMessage(message, vars) {
+		if (isStringLiteral(message)) return stripStringQuotes(message);
+		if (containsDollarVar(message)) return interpolateString(message, vars);
+		return evaluateExpression(message, vars);
 	}
 
 	// ─── Print ──────────────────────────────────────────────────────────
@@ -912,8 +925,20 @@
 	function tryPrint(line, vars, state) {
 		var printArg = parsePrintArgument(line);
 		if (printArg === null) return false;
-		state.output.push(String(evaluateExpression(printArg, vars)));
+		var result = evaluatePrintExpression(printArg, vars);
+		state.output.push(String(result));
 		return true;
+	}
+
+	function evaluatePrintExpression(arg, vars) {
+		if (isStringLiteral(arg)) return stripStringQuotes(arg);
+		if (isNumberLiteral(arg)) return parseFloat(arg);
+		if (containsDollarVar(arg)) return interpolateString(arg, vars);
+		return evaluateExpression(arg, vars);
+	}
+
+	function containsDollarVar(str) {
+		return /\$[a-zA-Z_\u00C0-\u024F]/.test(str);
 	}
 
 	// ─── Assignment ─────────────────────────────────────────────────────

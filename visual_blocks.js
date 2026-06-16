@@ -515,11 +515,9 @@
 			case 'celebrate_spectacular':  return 'celebrate("spectacular")';
 			case 'celebrate_stop':         return 'celebrate_stop()';
 
-
 			case 'if':
 			case 'elif':
 				var keyword = type === 'if' ? 'if' : 'elif';
-				// Selects order: [0]=cond-left, [1]=cond-op, [2]=cond-value, [3]=cond-logic, [4]=cond-left2, [5]=cond-op2, [6]=cond-value2
 				var condLeft = getSelectValue(selects, 0) || 'links';
 				var condOp = getSelectValue(selects, 1) || '==';
 				var condRight = getSelectValue(selects, 2) || '"none"';
@@ -554,10 +552,10 @@
 			case 'else': return 'else';
 
 			case 'print':
-				return 'print ' + (getInputValue(inputs, 0) || '"Hallo!"');
+				return 'print ' + (getInputValue(inputs, 0) || 'Hallo!');
 
 			case 'show_text':
-				var msg = getInputValue(inputs, 0) || '"Hallo!"';
+				var msg = getInputValue(inputs, 0) || 'Hallo!';
 				var style = getSelectByClass(block, 'style-select') || 'normal';
 				return 'show_text ' + msg + ' ' + style;
 
@@ -572,7 +570,7 @@
 				return cvname + ' += ' + cvval;
 
 			case 'label_value':
-				return null; // label blocks are just for reference, not code
+				return null;
 
 			default:
 				return '# unknown: ' + type;
@@ -1103,8 +1101,8 @@
 				var printInput = document.createElement('input');
 				printInput.type = 'text';
 				printInput.className = 'block-input';
-				printInput.value = (data && data.inputs && data.inputs[0]) || '"Hallo!"';
-				printInput.placeholder = 'Text oder Variable';
+				printInput.value = (data && data.inputs && data.inputs[0]) || 'Hallo!';
+				printInput.placeholder = 'Text mit $variablen';
 				printInput.style.width = '160px';
 				content.appendChild(printInput);
 				break;
@@ -1114,8 +1112,8 @@
 				var showInput = document.createElement('input');
 				showInput.type = 'text';
 				showInput.className = 'block-input';
-				showInput.value = (data && data.inputs && data.inputs[0]) || '"Hallo!"';
-				showInput.placeholder = 'Text oder Variable';
+				showInput.value = (data && data.inputs && data.inputs[0]) || 'Hallo!';
+				showInput.placeholder = 'Text mit $variablen';
 				content.appendChild(showInput);
 
 				var styleOpts = [
@@ -1127,6 +1125,7 @@
 				var styleSelect = buildSelect(styleOpts, (data && data.inputs && data.inputs[1]) || 'normal', 'style-select');
 				content.appendChild(styleSelect);
 				break;
+
 
 			case 'set_var':
 				content.innerHTML = '<span class="bi">📝</span> <span class="bk">setze</span> ';
