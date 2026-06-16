@@ -41,7 +41,10 @@
 
 	function interpolateString(str, vars) {
 		return str.replace(/\$([a-zA-Z_\u00C0-\u024F][a-zA-Z0-9_\u00C0-\u024F]*)/g, function(match, varName) {
-			if (vars.hasOwnProperty(varName)) return String(vars[varName]);
+			if (vars.hasOwnProperty(varName)) {
+				return String(vars[varName]);
+			}
+			// Variable nicht gefunden → $varname bleibt stehen (Debugging-Hilfe)
 			return match;
 		});
 	}
@@ -914,12 +917,6 @@
 		return true;
 	}
 
-	function evaluateShowTextMessage(message, vars) {
-		if (isStringLiteral(message)) return stripStringQuotes(message);
-		if (containsDollarVar(message)) return interpolateString(message, vars);
-		return evaluateExpression(message, vars);
-	}
-
 	// ─── Print ──────────────────────────────────────────────────────────
 
 	function tryPrint(line, vars, state) {
@@ -930,11 +927,18 @@
 		return true;
 	}
 
+	function evaluateShowTextMessage(message, vars) {
+		if (isStringLiteral(message)) return stripStringQuotes(message);
+		if (isNumberLiteral(message)) return parseFloat(message);
+		// IMMER interpolieren - auch als Fallback
+		return interpolateString(message, vars);
+	}
+
 	function evaluatePrintExpression(arg, vars) {
 		if (isStringLiteral(arg)) return stripStringQuotes(arg);
 		if (isNumberLiteral(arg)) return parseFloat(arg);
-		if (containsDollarVar(arg)) return interpolateString(arg, vars);
-		return evaluateExpression(arg, vars);
+		// IMMER interpolieren - auch als Fallback
+		return interpolateString(arg, vars);
 	}
 
 	function containsDollarVar(str) {
