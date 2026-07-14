@@ -305,6 +305,10 @@ a:hover {
     box-shadow: 0 2px 8px rgba(66, 165, 245, 0.3);
 }
 
+.cond-remove-btn {
+	padding: 0px !important;
+}
+
 .cond-remove-btn:hover {
     background: #ef5350 !important;
     color: #fff !important;
