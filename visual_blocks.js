@@ -959,6 +959,44 @@
 		return map[type] || '';
 	}
 
+	function getConditionGroupRow(container, idx) {
+		// Finde die Selects der Gruppe mit Index idx
+		var leftSelects = container.querySelectorAll('select.cond-left');
+		if (idx >= leftSelects.length) return null;
+		// Erstelle einen visuellen Wrapper um die 3 Selects dieser Gruppe
+		var leftEl = leftSelects[idx];
+		// Gehe zum nächsten Geschwister (op) und danach (value)
+		var parent = leftEl.parentElement;
+		return parent; // Der Container selbst
+	}
+
+	function exitParenMode(block) {
+		block._parenMode = null;
+		block._parenStartIdx = null;
+
+		// Alle visuellen Marker entfernen
+		var markers = block.querySelectorAll('.paren-select-marker');
+		for (var i = 0; i < markers.length; i++) markers[i].remove();
+
+		// Klassen entfernen
+		var selectables = block.querySelectorAll('.paren-selectable, .paren-selected-start, .paren-disabled');
+		for (var i = 0; i < selectables.length; i++) {
+			selectables[i].classList.remove('paren-selectable', 'paren-selected-start', 'paren-disabled');
+			if (selectables[i]._parenClickHandler) {
+				selectables[i].removeEventListener('click', selectables[i]._parenClickHandler);
+				delete selectables[i]._parenClickHandler;
+			}
+		}
+
+		// Button zurücksetzen
+		var parenBtn = block.querySelector('.cond-paren-btn');
+		if (parenBtn) {
+			parenBtn.textContent = '( )';
+			parenBtn.style.background = '';
+			parenBtn.style.borderColor = '';
+			parenBtn.style.animation = '';
+		}
+	}
 
 	// ─── Build block DOM ────────────────────────────────────────────────
 	function buildBlockDOM(block, type, data) {
@@ -1152,19 +1190,87 @@
 				    parenBtn.style.cssText = 'background:linear-gradient(135deg,#e3f2fd,#bbdefb); border:2px solid #42a5f5; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:4px; color:#1565c0; font-weight:800; font-family:inherit;';
 				    parenBtn.setAttribute('draggable', 'false');
 				    parenBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-				    parenBtn.addEventListener('click', function(e) {
-					e.stopPropagation();
-					// Einfache Klammer-Logik: Popup mit Start/Ende-Auswahl
-					var startIdx = parseInt(prompt('Klammer ÖFFNEN vor Bedingung Nr. (1-' + groups.length + '):', '1')) - 1;
-					var endIdx = parseInt(prompt('Klammer SCHLIESSEN nach Bedingung Nr. (1-' + groups.length + '):', String(groups.length))) - 1;
-					if (startIdx >= 0 && endIdx >= startIdx && endIdx < groups.length) {
-					    // Alte Klammern an diesen Positionen entfernen
-					    groups[startIdx].parenOpen = true;
-					    groups[endIdx].parenClose = true;
-					    renderConditionGroups();
-					    syncBlocksToDSL();
-					}
-				    });
+					parenBtn.addEventListener('click', function(e) {
+						e.stopPropagation();
+
+						// Wenn bereits im Klammer-Modus, abbrechen
+						if (block._parenMode) {
+							exitParenMode(block);
+							return;
+						}
+
+						// Klammer-Modus aktivieren
+						block._parenMode = 'start'; // 'start' = warte auf Öffnung, 'end' = warte auf Schließung
+						block._parenStartIdx = null;
+
+						// Button visuell ändern
+						parenBtn.textContent = '⏳ Wähle START...';
+						parenBtn.style.background = '#fff3e0';
+						parenBtn.style.borderColor = '#ff9800';
+						parenBtn.style.animation = 'pulse 1s infinite';
+
+						// Alle Bedingungsgruppen hervorheben und klickbar machen
+						var groupElements = condGroupsContainer.querySelectorAll('select.cond-left');
+						for (var gi = 0; gi < groupElements.length; gi++) {
+							(function(gIdx) {
+								var groupRow = getConditionGroupRow(condGroupsContainer, gIdx);
+								if (!groupRow) return;
+
+								// Visuellen Marker hinzufügen
+								var marker = document.createElement('div');
+								marker.className = 'paren-select-marker';
+								marker.textContent = '👆 ' + (gIdx + 1);
+								marker.style.cssText = 'position:absolute; top:-18px; left:50%; transform:translateX(-50%); ' +
+									'background:#ff9800; color:#fff; padding:1px 6px; border-radius:8px; ' +
+									'font-size:0.65rem; font-weight:bold; pointer-events:none; white-space:nowrap; z-index:10;';
+
+								// Wrapper für relative Positionierung
+								if (!groupRow.style.position || groupRow.style.position === 'static') {
+									groupRow.style.position = 'relative';
+								}
+								groupRow.appendChild(marker);
+								groupRow.classList.add('paren-selectable');
+
+								// Klick-Handler
+								var clickHandler = function(ev) {
+									ev.stopPropagation();
+
+									if (block._parenMode === 'start') {
+										// Start-Klammer gesetzt
+										block._parenStartIdx = gIdx;
+										block._parenMode = 'end';
+
+										// Visuelles Feedback
+										groupRow.classList.add('paren-selected-start');
+										parenBtn.textContent = '⏳ Wähle ENDE...';
+
+										// Nur gültige End-Positionen hervorheben (>= startIdx)
+										var allMarkers = condGroupsContainer.querySelectorAll('.paren-select-marker');
+										for (var m = 0; m < allMarkers.length; m++) {
+											if (m < gIdx) {
+												allMarkers[m].parentElement.classList.add('paren-disabled');
+												allMarkers[m].parentElement.classList.remove('paren-selectable');
+											}
+										}
+
+									} else if (block._parenMode === 'end') {
+										// End-Klammer gesetzt
+										if (gIdx >= block._parenStartIdx) {
+											groups[block._parenStartIdx].parenOpen = true;
+											groups[gIdx].parenClose = true;
+											exitParenMode(block);
+											renderConditionGroups();
+											syncBlocksToDSL();
+										}
+									}
+								};
+
+								groupRow.addEventListener('click', clickHandler);
+								groupRow._parenClickHandler = clickHandler;
+
+							})(gi);
+						}
+					});
 				    condGroupsContainer.appendChild(parenBtn);
 				}
 			    }

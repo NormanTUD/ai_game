@@ -325,3 +325,56 @@ a:hover {
     flex-wrap: wrap;
     gap: 3px;
 }
+
+/* ═══ Paren Selection Mode ═══ */
+.paren-selectable {
+    cursor: pointer !important;
+    outline: 2px dashed #ff9800;
+    outline-offset: 2px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.paren-selectable:hover {
+    outline-color: #f57c00;
+    background: rgba(255, 152, 0, 0.1) !important;
+    transform: scale(1.02);
+}
+
+.paren-selected-start {
+    outline: 3px solid #4caf50 !important;
+    background: rgba(76, 175, 80, 0.15) !important;
+}
+
+.paren-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Visuelle Klammern im Block */
+.cond-paren-open, .cond-paren-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 24px;
+    background: linear-gradient(135deg, #ede7f6, #d1c4e9);
+    border-radius: 4px;
+    font-weight: 900;
+    font-size: 1.3em;
+    color: #7c4dff;
+    box-shadow: 0 1px 3px rgba(124, 77, 255, 0.3);
+    transition: all 0.2s;
+}
+
+.cond-paren-open:hover, .cond-paren-close:hover {
+    background: #ffcdd2;
+    color: #e53935;
+    transform: scale(1.2);
+    cursor: pointer;
+}
