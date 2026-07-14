@@ -1070,10 +1070,15 @@
 								parenOpenSpan.className = 'cond-paren cond-paren-open';
 								parenOpenSpan.textContent = '(';
 								parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
-								parenOpenSpan.title = 'Klammer entfernen';
+								parenOpenSpan.title = 'Klammer-Paar entfernen';
 								parenOpenSpan.addEventListener('click', function(e) {
 									e.stopPropagation();
+									// Finde das zugehörige Paar und entferne BEIDE Seiten
+									var pairIdx = findParenClosePair(gIdx);
 									groups[gIdx].parenOpen = false;
+									if (pairIdx !== -1) {
+										groups[pairIdx].parenClose = false;
+									}
 									renderConditionGroups();
 									syncBlocksToDSL();
 								});
@@ -1136,10 +1141,15 @@
 								parenCloseSpan.className = 'cond-paren cond-paren-close';
 								parenCloseSpan.textContent = ')';
 								parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
-								parenCloseSpan.title = 'Klammer entfernen';
+								parenCloseSpan.title = 'Klammer-Paar entfernen';
 								parenCloseSpan.addEventListener('click', function(e) {
 									e.stopPropagation();
+									// Finde das zugehörige Paar und entferne BEIDE Seiten
+									var pairIdx = findParenOpenPair(gIdx);
 									groups[gIdx].parenClose = false;
+									if (pairIdx !== -1) {
+										groups[pairIdx].parenOpen = false;
+									}
 									renderConditionGroups();
 									syncBlocksToDSL();
 								});
@@ -1157,6 +1167,15 @@
 								removeBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
 								removeBtn.addEventListener('click', function(e) {
 									e.stopPropagation();
+									// Klammern aufräumen bevor die Gruppe entfernt wird
+									if (groups[gIdx].parenOpen) {
+										var closePair = findParenClosePair(gIdx);
+										if (closePair !== -1) groups[closePair].parenClose = false;
+									}
+									if (groups[gIdx].parenClose) {
+										var openPair = findParenOpenPair(gIdx);
+										if (openPair !== -1) groups[openPair].parenOpen = false;
+									}
 									groups.splice(gIdx, 1);
 									if (gIdx > 0) {
 										logics.splice(gIdx - 1, 1);
@@ -1248,7 +1267,7 @@
 											wrapper.classList.add('paren-selected-start');
 											parenBtn.textContent = '⏳ Wähle ENDE...';
 
-											// Ungültige Positionen deaktivieren
+											// Ungültige Positionen deaktivieren (vor dem Start)
 											var allWrappers = condGroupsContainer.querySelectorAll('.cond-group-wrapper');
 											for (var m = 0; m < allWrappers.length; m++) {
 												if (m < gIdx) {
@@ -1259,11 +1278,18 @@
 
 										} else if (block._parenMode === 'end') {
 											if (gIdx >= block._parenStartIdx) {
-												groups[block._parenStartIdx].parenOpen = true;
-												groups[gIdx].parenClose = true;
-												exitParenMode(block);
-												renderConditionGroups();
-												syncBlocksToDSL();
+												// Validierung: Prüfe ob neue Klammern mit bestehenden überlappen
+												if (isValidParenPlacement(block._parenStartIdx, gIdx)) {
+													groups[block._parenStartIdx].parenOpen = true;
+													groups[gIdx].parenClose = true;
+													exitParenMode(block);
+													renderConditionGroups();
+													syncBlocksToDSL();
+												} else {
+													// Ungültige Platzierung - Fehlermeldung
+													exitParenMode(block);
+													renderConditionGroups();
+												}
 											}
 										}
 									};
@@ -1276,6 +1302,59 @@
 						});
 						condGroupsContainer.appendChild(parenBtn);
 					}
+				}
+
+				// Hilfsfunktion: Finde die zugehörige schließende Klammer für eine öffnende bei startIdx
+				function findParenClosePair(startIdx) {
+					var depth = 0;
+					for (var i = startIdx; i < groups.length; i++) {
+						if (groups[i].parenOpen) depth++;
+						if (groups[i].parenClose) {
+							depth--;
+							if (depth === 0) return i;
+						}
+					}
+					return -1;
+				}
+
+				// Hilfsfunktion: Finde die zugehörige öffnende Klammer für eine schließende bei endIdx
+				function findParenOpenPair(endIdx) {
+					var depth = 0;
+					for (var i = endIdx; i >= 0; i--) {
+						if (groups[i].parenClose) depth++;
+						if (groups[i].parenOpen) {
+							depth--;
+							if (depth === 0) return i;
+						}
+					}
+					return -1;
+				}
+
+				// Validierung: Prüfe ob neue Klammern korrekt verschachtelt sind (keine Überlappung)
+				function isValidParenPlacement(newStart, newEnd) {
+					// Sammle alle bestehenden Klammer-Paare
+					var existingPairs = [];
+					for (var i = 0; i < groups.length; i++) {
+						if (groups[i].parenOpen) {
+							var closeIdx = findParenClosePair(i);
+							if (closeIdx !== -1) {
+								existingPairs.push({ start: i, end: closeIdx });
+							}
+						}
+					}
+
+					// Prüfe ob das neue Paar mit bestehenden überlappt
+					for (var p = 0; p < existingPairs.length; p++) {
+						var existing = existingPairs[p];
+						// Überlappung: neues Paar startet innerhalb eines bestehenden aber endet außerhalb (oder umgekehrt)
+						var newStartInside = newStart > existing.start && newStart <= existing.end;
+						var newEndInside = newEnd >= existing.start && newEnd < existing.end;
+
+						if (newStartInside && !newEndInside) return false; // Überlappt links raus
+						if (!newStartInside && newEndInside && newStart < existing.start) return false; // Überlappt rechts raus
+					}
+
+					return true;
 				}
 
 			    // Speichere groups/logics am Block-Element für spätere Nutzung
