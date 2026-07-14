@@ -1004,10 +1004,10 @@
 
 		switch (type) {
 			case 'get_left':
-				content.innerHTML = '<span class="bi">👈</span> <strong>links</strong> = was links ist';
+				content.innerHTML = '<span class="bi">👈</span> <strong>links</strong> = was links erkannt worden ist';
 				break;
 			case 'get_right':
-				content.innerHTML = '<span class="bi">👉</span> <strong>rechts</strong> = was rechts ist';
+				content.innerHTML = '<span class="bi">👉</span> <strong>rechts</strong> = was rechts erkannt worden ist';
 				break;
 			case 'get_count':
 				content.innerHTML = '<span class="bi">🔢</span> <strong>anzahl</strong> = wie viele?';
