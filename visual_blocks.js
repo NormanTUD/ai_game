@@ -471,6 +471,14 @@
 	}
 
 	// ─── Sync blocks to DSL code ────────────────────────────────────────
+	function makeIndent(level) {
+		var result = '';
+		for (var i = 0; i < level; i++) {
+			result += '  ';
+		}
+		return result;
+	}
+
 	function syncBlocksToDSL() {
 		recalcIndentation();
 		var blocks = workspace.querySelectorAll('.workspace-block');
@@ -486,21 +494,15 @@
 			while (indentStack.length > 0 && indentStack[indentStack.length - 1] >= currentIndent) {
 				var type = blocks[i].getAttribute('data-block-type');
 				if (type === 'elif' || type === 'else') break;
-				lines.push('end');
 				indentStack.pop();
 			}
 
-			lines.push(code);
+			lines.push(makeIndent(currentIndent) + code);
 
 			var type = blocks[i].getAttribute('data-block-type');
 			if (type === 'if' || type === 'elif' || type === 'else' || type === 'while' || type === 'for') {
 				indentStack.push(currentIndent);
 			}
-		}
-
-		while (indentStack.length > 0) {
-			lines.push('end');
-			indentStack.pop();
 		}
 
 		dslEditor.value = lines.join('\n');
@@ -509,9 +511,9 @@
 			placeholder.style.display = blocks.length === 0 ? 'block' : 'none';
 		}
 
-		// ✅ NEU: Alle Condition-Selects mit aktuellen Variablen aktualisieren
 		refreshAllConditionSelects(null);
 	}
+
 
 	function getBlockCode(block) {
 		var type = block.getAttribute('data-block-type');
@@ -1765,9 +1767,11 @@
 		}
 
 		// Print
-		if (line.startsWith('print ') || line.startsWith('print(')) {
+		if (line === 'print' || line.startsWith('print ') || line.startsWith('print(')) {
 			var arg = '';
-			if (line.startsWith('print(')) {
+			if (line === 'print') {
+				arg = '';
+			} else if (line.startsWith('print(')) {
 				var depth = 0;
 				for (var i = 5; i < line.length; i++) {
 					if (line[i] === '(') depth++;

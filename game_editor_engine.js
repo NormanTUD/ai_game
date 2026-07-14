@@ -716,8 +716,17 @@
 	function parseScript(code) {
 		var lines = code.split('\n'), parsed = [];
 		for (var i = 0; i < lines.length; i++) {
-			var trimmed = tokenizeLine(lines[i]);
-			if (trimmed !== '') parsed.push({ lineNum: i + 1, text: trimmed });
+			var raw = lines[i];
+			var indent = 0;
+			while (indent < raw.length && (raw[indent] === ' ' || raw[indent] === '\t')) {
+				indent++;
+			}
+			var indentLevel = Math.floor(indent / 2);
+			var trimmed = tokenizeLine(raw);
+			// Skip empty lines and 'end' markers (indentation handles block boundaries now)
+			if (trimmed !== '' && trimmed !== 'end') {
+				parsed.push({ lineNum: i + 1, text: trimmed, indent: indentLevel });
+			}
 		}
 		return parsed;
 	}
@@ -1182,13 +1191,18 @@
 	function processRemainingBranches(parsedLines, vars, state, idx, endIdx, conditionMet) {
 		while (idx < endIdx) {
 			var line = parsedLines[idx].text;
+			var lineIndent = parsedLines[idx].indent;
+
+			// Only treat elif/else at the same indent as the original if
 			if (line.startsWith('elif ')) {
 				idx = handleElif(parsedLines, vars, state, idx, endIdx, conditionMet);
 				conditionMet = conditionMet || wasConditionMet(parsedLines, vars, line, conditionMet);
 			} else if (line === 'else') {
 				idx = handleElse(parsedLines, vars, state, idx, endIdx, conditionMet);
 				break;
-			} else { break; }
+			} else {
+				break;
+			}
 		}
 		return idx;
 	}
@@ -1215,9 +1229,22 @@
 
 	function executeBodyUntilBranch(parsedLines, vars, state, startIdx, endIdx) {
 		var idx = startIdx;
+		// Determine the parent indent level (the if/elif/else that started this body)
+		var parentIndent = (startIdx > 0) ? parsedLines[startIdx - 1].indent : 0;
+		var bodyIndent = parentIndent + 1;
+
 		while (idx < endIdx) {
 			var line = parsedLines[idx].text;
-			if (line.startsWith('elif ') || line === 'else') return idx;
+			var lineIndent = parsedLines[idx].indent;
+
+			// If we hit a line at parent level or less, we've left the body
+			if (lineIndent <= parentIndent) {
+				// But elif/else at parent level are still part of the if-chain
+				if ((line.startsWith('elif ') || line === 'else') && lineIndent === parentIndent) return idx;
+				// Otherwise we've exited the block entirely
+				return idx;
+			}
+
 			if (line.startsWith('if ')) { idx = executeIfBlock(parsedLines, vars, state, idx, endIdx); continue; }
 			if (line.startsWith('while ')) { idx = executeWhile(parsedLines, vars, state, idx, endIdx); continue; }
 			if (line.startsWith('for ')) { idx = executeFor(parsedLines, vars, state, idx, endIdx); continue; }
@@ -1228,11 +1255,18 @@
 	}
 
 	function skipBodyUntilBranch(parsedLines, startIdx, endIdx) {
-		var idx = startIdx, depth = 0;
+		var idx = startIdx;
+		var parentIndent = (startIdx > 0) ? parsedLines[startIdx - 1].indent : 0;
+
 		while (idx < endIdx) {
 			var line = parsedLines[idx].text;
-			if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) { depth++; idx++; continue; }
-			if ((line.startsWith('elif ') || line === 'else') && depth === 0) return idx;
+			var lineIndent = parsedLines[idx].indent;
+
+			// If we hit a line at parent level or less
+			if (lineIndent <= parentIndent) {
+				if ((line.startsWith('elif ') || line === 'else') && lineIndent === parentIndent) return idx;
+				return idx;
+			}
 			idx++;
 		}
 		return idx;
@@ -1241,10 +1275,11 @@
 	// ─── Find matching end ──────────────────────────────────────────────
 
 	function findMatchingEnd(parsedLines, startIdx, endIdx) {
-		var depth = 0;
+		if (startIdx <= 0 || startIdx >= parsedLines.length) return endIdx;
+		var parentIndent = parsedLines[startIdx - 1].indent;
+
 		for (var i = startIdx; i < endIdx; i++) {
-			var line = parsedLines[i].text;
-			if (line.startsWith('if ') || line.startsWith('while ') || line.startsWith('for ')) depth++;
+			if (parsedLines[i].indent <= parentIndent) return i;
 		}
 		return endIdx;
 	}
@@ -1479,13 +1514,17 @@
 	}
 
 	var lastOutputHash = '';
+	var lastOutputTimestamp = 0;
+	var OUTPUT_REPEAT_INTERVAL = 2000; // Allow same output every 2 seconds
 
 	function handleScriptResults(results) {
 		if (results.output && results.output.length > 0) {
-			// Nur ausgeben wenn sich etwas geändert hat
 			var newHash = results.output.join('|');
-			if (newHash !== lastOutputHash) {
+			var now = Date.now();
+			// Always print if content changed, OR if enough time passed (for static prints)
+			if (newHash !== lastOutputHash || (now - lastOutputTimestamp) >= OUTPUT_REPEAT_INTERVAL) {
 				lastOutputHash = newHash;
+				lastOutputTimestamp = now;
 				for (var i = 0; i < results.output.length; i++) appendOutput(results.output[i]);
 			}
 		}
