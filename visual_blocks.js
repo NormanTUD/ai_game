@@ -539,38 +539,38 @@
 
 			case 'if':
 			case 'elif':
-			    var keyword = type === 'if' ? 'if' : 'elif';
+				var keyword = type === 'if' ? 'if' : 'elif';
 
-			    // Neue Methode: groups/logics vom Block lesen
-			    if (block._condGroups && block._condGroups.length > 0) {
-				var groups = block._condGroups;
-				var logics = block._condLogics || [];
-				var condParts = [];
+				// Neue Methode: groups/logics vom Block lesen
+				if (block._condGroups && block._condGroups.length > 0) {
+					var groups = block._condGroups;
+					var logics = block._condLogics || [];
+					var condParts = [];
 
-				for (var g = 0; g < groups.length; g++) {
-				    var part = '';
-				    if (groups[g].parenOpen) part += '(';
-				    part += (groups[g].left || 'links') + ' ' + (groups[g].op || '==') + ' ' + (groups[g].right || '"none"');
-				    if (groups[g].parenClose) part += ')';
-				    condParts.push(part);
+					for (var g = 0; g < groups.length; g++) {
+						var part = '';
+						if (groups[g].parenOpen) part += '(';
+						part += (groups[g].left || 'links') + ' ' + (groups[g].op || '==') + ' ' + (groups[g].right || '"none"');
+						if (groups[g].parenClose) part += ')';
+						condParts.push(part);
+					}
+
+					var code = keyword + ' ';
+					for (var g = 0; g < condParts.length; g++) {
+						if (g > 0) {
+							var logic = logics[g - 1] || 'und';
+							code += (logic === 'und' ? ' and ' : ' or ');
+						}
+						code += condParts[g];
+					}
+					return code;
 				}
 
-				var code = keyword + ' ';
-				for (var g = 0; g < condParts.length; g++) {
-				    if (g > 0) {
-					var logic = logics[g - 1] || 'und';
-					code += (logic === 'und' ? ' and ' : ' or ');
-				    }
-				    code += condParts[g];
-				}
-				return code;
-			    }
-
-			    // Fallback für alte Blöcke ohne _condGroups (sollte nicht vorkommen)
-			    var condLeft = getSelectValue(selects, 0) || 'links';
-			    var condOp = getSelectValue(selects, 1) || '==';
-			    var condRight = getSelectValue(selects, 2) || '"none"';
-			    return keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
+				// Fallback für alte Blöcke ohne _condGroups (sollte nicht vorkommen)
+				var condLeft = getSelectValue(selects, 0) || 'links';
+				var condOp = getSelectValue(selects, 1) || '==';
+				var condRight = getSelectValue(selects, 2) || '"none"';
+				return keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
 
 			case 'while':
 				var wLeft = getSelectValue(selects, 0) || 'links';
@@ -637,7 +637,7 @@
 		}
 		return select;
 	}
-	
+
 	// Show/hide indent buttons based on current indent level
 	function updateIndentButtonVisibility(block) {
 		var currentIndent = parseInt(block.getAttribute('data-indent')) || 0;
@@ -1030,28 +1030,28 @@
 
 			case 'if':
 			case 'elif':
-			    var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
-			    var icon = type === 'if' ? '❓' : '🤔';
-			    var condData = (data && data.condition) || {};
+				var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
+				var icon = type === 'if' ? '❓' : '🤔';
+				var condData = (data && data.condition) || {};
 
-			    content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
+				content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
 
-			    // Container für alle Bedingungsgruppen
-			    var condGroupsContainer = document.createElement('div');
-			    condGroupsContainer.className = 'cond-groups-container';
-			    condGroupsContainer.style.display = 'inline';
+				// Container für alle Bedingungsgruppen
+				var condGroupsContainer = document.createElement('div');
+				condGroupsContainer.className = 'cond-groups-container';
+				condGroupsContainer.style.display = 'inline';
 
-			    // Initiale Bedingungsgruppen aus condData laden
-			    var groups = condData.groups || [{ left: condData.left || 'links', op: condData.op || '==', right: condData.right || '"none"' }];
+				// Initiale Bedingungsgruppen aus condData laden
+				var groups = condData.groups || [{ left: condData.left || 'links', op: condData.op || '==', right: condData.right || '"none"' }];
 
-			    // Logik-Konnektoren zwischen Gruppen
-			    var logics = condData.logics || [];
+				// Logik-Konnektoren zwischen Gruppen
+				var logics = condData.logics || [];
 
-			    // Falls alte Daten mit logic/left2/op2/right2 vorhanden sind, migrieren
-			    if (!condData.groups && condData.logic && condData.left2) {
-				groups.push({ left: condData.left2, op: condData.op2 || '==', right: condData.right2 || '"none"' });
-				logics.push(condData.logic);
-			    }
+				// Falls alte Daten mit logic/left2/op2/right2 vorhanden sind, migrieren
+				if (!condData.groups && condData.logic && condData.left2) {
+					groups.push({ left: condData.left2, op: condData.op2 || '==', right: condData.right2 || '"none"' });
+					logics.push(condData.logic);
+				}
 
 				function renderConditionGroups() {
 					condGroupsContainer.innerHTML = '';
@@ -1357,18 +1357,18 @@
 					return true;
 				}
 
-			    // Speichere groups/logics am Block-Element für spätere Nutzung
-			    block._condGroups = groups;
-			    block._condLogics = logics;
+				// Speichere groups/logics am Block-Element für spätere Nutzung
+				block._condGroups = groups;
+				block._condLogics = logics;
 
-			    renderConditionGroups();
-			    content.appendChild(condGroupsContainer);
+				renderConditionGroups();
+				content.appendChild(condGroupsContainer);
 
-			    var thenSpan = document.createElement('span');
-			    thenSpan.className = 'bk';
-			    thenSpan.textContent = ' dann';
-			    content.appendChild(thenSpan);
-			    break;
+				var thenSpan = document.createElement('span');
+				thenSpan.className = 'bk';
+				thenSpan.textContent = ' dann';
+				content.appendChild(thenSpan);
+				break;
 
 
 			case 'while':
@@ -1703,7 +1703,7 @@
 
 		// Control flow
 		if (line.startsWith('if ')) {
-		    var cond = parseConditionString(line.substring(3).trim());
+			var cond = parseConditionString(line.substring(3).trim());
 			return { type: 'if', data: { condition: cond } };
 		}
 		if (line.startsWith('elif ')) {
