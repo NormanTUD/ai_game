@@ -351,6 +351,10 @@
 	}
 
 	function refreshConditionSelects(block) {
+		// Für Blöcke mit dem neuen _condGroups System:
+		// Die Selects werden beim renderConditionGroups() neu gebaut,
+		// also müssen wir nur die Optionen in bestehenden Selects aktualisieren.
+
 		// Refresh cond-left selects
 		var leftSelects = block.querySelectorAll('select.cond-left');
 		var leftOpts = getLeftSideOptions();
@@ -368,10 +372,13 @@
 				}
 				leftSelects[i].appendChild(opt);
 			}
-			// Falls der aktuelle Wert nicht mehr existiert, auf default setzen
 			if (!foundCurrent && currentVal) {
-				// Wert existiert nicht mehr - auf "detection_count" (anzahl) setzen
-				leftSelects[i].value = 'detection_count';
+				// Prüfe ob es ein custom value ist, den wir behalten sollten
+				var customOpt = document.createElement('option');
+				customOpt.value = currentVal;
+				customOpt.textContent = '📌 ' + currentVal;
+				customOpt.selected = true;
+				leftSelects[i].insertBefore(customOpt, leftSelects[i].firstChild);
 			}
 		}
 
@@ -392,9 +399,24 @@
 				}
 				valueSelects[i].appendChild(opt);
 			}
-			// Falls der aktuelle Wert nicht mehr existiert, auf default setzen
 			if (!foundCurrent && currentVal) {
-				valueSelects[i].value = 'detection_count';
+				var customOpt = document.createElement('option');
+				customOpt.value = currentVal;
+				customOpt.textContent = '📌 ' + currentVal;
+				customOpt.selected = true;
+				valueSelects[i].insertBefore(customOpt, valueSelects[i].firstChild);
+			}
+		}
+
+		// Synchronisiere _condGroups mit den aktuellen Select-Werten
+		if (block._condGroups) {
+			var leftArr = block.querySelectorAll('select.cond-left');
+			var opArr = block.querySelectorAll('select.cond-op');
+			var rightArr = block.querySelectorAll('select.cond-value');
+			for (var i = 0; i < block._condGroups.length; i++) {
+				if (leftArr[i]) block._condGroups[i].left = leftArr[i].value;
+				if (opArr[i]) block._condGroups[i].op = opArr[i].value;
+				if (rightArr[i]) block._condGroups[i].right = rightArr[i].value;
 			}
 		}
 	}
@@ -517,26 +539,38 @@
 
 			case 'if':
 			case 'elif':
-				var keyword = type === 'if' ? 'if' : 'elif';
-				var condLeft = getSelectValue(selects, 0) || 'links';
-				var condOp = getSelectValue(selects, 1) || '==';
-				var condRight = getSelectValue(selects, 2) || '"none"';
-				var condLogic = getSelectValue(selects, 3) || '';
+			    var keyword = type === 'if' ? 'if' : 'elif';
 
-				var code = keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
+			    // Neue Methode: groups/logics vom Block lesen
+			    if (block._condGroups && block._condGroups.length > 0) {
+				var groups = block._condGroups;
+				var logics = block._condLogics || [];
+				var condParts = [];
 
-				if (condLogic === 'und' && selects.length >= 7) {
-					var condLeft2 = getSelectValue(selects, 4) || 'links';
-					var condOp2 = getSelectValue(selects, 5) || '==';
-					var condRight2 = getSelectValue(selects, 6) || '"none"';
-					code += ' and ' + condLeft2 + ' ' + condOp2 + ' ' + condRight2;
-				} else if (condLogic === 'oder' && selects.length >= 7) {
-					var condLeft2 = getSelectValue(selects, 4) || 'links';
-					var condOp2 = getSelectValue(selects, 5) || '==';
-					var condRight2 = getSelectValue(selects, 6) || '"none"';
-					code += ' or ' + condLeft2 + ' ' + condOp2 + ' ' + condRight2;
+				for (var g = 0; g < groups.length; g++) {
+				    var part = '';
+				    if (groups[g].parenOpen) part += '(';
+				    part += (groups[g].left || 'links') + ' ' + (groups[g].op || '==') + ' ' + (groups[g].right || '"none"');
+				    if (groups[g].parenClose) part += ')';
+				    condParts.push(part);
+				}
+
+				var code = keyword + ' ';
+				for (var g = 0; g < condParts.length; g++) {
+				    if (g > 0) {
+					var logic = logics[g - 1] || 'und';
+					code += (logic === 'und' ? ' and ' : ' or ');
+				    }
+				    code += condParts[g];
 				}
 				return code;
+			    }
+
+			    // Fallback für alte Blöcke ohne _condGroups (sollte nicht vorkommen)
+			    var condLeft = getSelectValue(selects, 0) || 'links';
+			    var condOp = getSelectValue(selects, 1) || '==';
+			    var condRight = getSelectValue(selects, 2) || '"none"';
+			    return keyword + ' ' + condLeft + ' ' + condOp + ' ' + condRight;
 
 			case 'while':
 				var wLeft = getSelectValue(selects, 0) || 'links';
@@ -959,84 +993,195 @@
 
 			case 'if':
 			case 'elif':
-				var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
-				var icon = type === 'if' ? '❓' : '🤔';
-				var condData = (data && data.condition) || {};
+			    var keyword = type === 'if' ? 'wenn' : 'sonst wenn';
+			    var icon = type === 'if' ? '❓' : '🤔';
+			    var condData = (data && data.condition) || {};
 
-				content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
+			    content.innerHTML = '<span class="bi">' + icon + '</span> <span class="bk">' + keyword + '</span> ';
 
-				// LEFT side
-				var leftVal = condData.left || 'links';
-				var leftOpts = getLeftSideOptions();
-				var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
-				if (leftIsCustom) {
-					leftOpts.unshift({ value: leftVal, label: '📌 ' + leftVal });
+			    // Container für alle Bedingungsgruppen
+			    var condGroupsContainer = document.createElement('div');
+			    condGroupsContainer.className = 'cond-groups-container';
+			    condGroupsContainer.style.display = 'inline';
+
+			    // Initiale Bedingungsgruppen aus condData laden
+			    var groups = condData.groups || [{ left: condData.left || 'links', op: condData.op || '==', right: condData.right || '"none"' }];
+
+			    // Logik-Konnektoren zwischen Gruppen
+			    var logics = condData.logics || [];
+
+			    // Falls alte Daten mit logic/left2/op2/right2 vorhanden sind, migrieren
+			    if (!condData.groups && condData.logic && condData.left2) {
+				groups.push({ left: condData.left2, op: condData.op2 || '==', right: condData.right2 || '"none"' });
+				logics.push(condData.logic);
+			    }
+
+			    function renderConditionGroups() {
+				condGroupsContainer.innerHTML = '';
+
+				for (var g = 0; g < groups.length; g++) {
+				    (function(gIdx) {
+					// Klammer-Öffnung wenn nötig
+					if (groups[gIdx].parenOpen) {
+					    var parenOpenSpan = document.createElement('span');
+					    parenOpenSpan.className = 'cond-paren cond-paren-open';
+					    parenOpenSpan.textContent = '(';
+					    parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
+					    parenOpenSpan.title = 'Klammer entfernen';
+					    parenOpenSpan.addEventListener('click', function(e) {
+						e.stopPropagation();
+						groups[gIdx].parenOpen = false;
+						renderConditionGroups();
+						syncBlocksToDSL();
+					    });
+					    condGroupsContainer.appendChild(parenOpenSpan);
+					}
+
+					// Logik-Konnektor VOR dieser Gruppe (ab Index 1)
+					if (gIdx > 0) {
+					    var logicOpts = [
+						{ value: 'und', label: 'UND 🔗' },
+						{ value: 'oder', label: 'ODER 🔀' }
+					    ];
+					    var logicVal = logics[gIdx - 1] || 'und';
+					    var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
+					    logicSelect.style.margin = '0 4px';
+					    logicSelect.addEventListener('change', function() {
+						logics[gIdx - 1] = this.value;
+						syncBlocksToDSL();
+					    });
+					    condGroupsContainer.appendChild(logicSelect);
+					}
+
+					// LEFT
+					var leftVal = groups[gIdx].left || 'links';
+					var leftOpts = getLeftSideOptions();
+					var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
+					if (leftIsCustom) leftOpts.unshift({ value: leftVal, label: '📌 ' + leftVal });
+					var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
+					leftSelect.addEventListener('change', function() {
+					    groups[gIdx].left = this.value;
+					    syncBlocksToDSL();
+					});
+					condGroupsContainer.appendChild(leftSelect);
+
+					// OPERATOR
+					var opSelect = buildSelect(operators, groups[gIdx].op || '==', 'cond-op');
+					opSelect.addEventListener('change', function() {
+					    groups[gIdx].op = this.value;
+					    syncBlocksToDSL();
+					});
+					condGroupsContainer.appendChild(opSelect);
+
+					// RIGHT
+					var rightVal = groups[gIdx].right || '"none"';
+					var rightOpts = getCompareValues();
+					var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
+					if (rightIsCustom) rightOpts.unshift({ value: rightVal, label: '📌 ' + rightVal });
+					var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
+					rightSelect.addEventListener('change', function() {
+					    groups[gIdx].right = this.value;
+					    syncBlocksToDSL();
+					});
+					condGroupsContainer.appendChild(rightSelect);
+
+					// Klammer-Schließung wenn nötig
+					if (groups[gIdx].parenClose) {
+					    var parenCloseSpan = document.createElement('span');
+					    parenCloseSpan.className = 'cond-paren cond-paren-close';
+					    parenCloseSpan.textContent = ')';
+					    parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
+					    parenCloseSpan.title = 'Klammer entfernen';
+					    parenCloseSpan.addEventListener('click', function(e) {
+						e.stopPropagation();
+						groups[gIdx].parenClose = false;
+						renderConditionGroups();
+						syncBlocksToDSL();
+					    });
+					    condGroupsContainer.appendChild(parenCloseSpan);
+					}
+
+					// Entfernen-Button (nur wenn mehr als 1 Gruppe)
+					if (groups.length > 1) {
+					    var removeBtn = document.createElement('button');
+					    removeBtn.className = 'cond-remove-btn';
+					    removeBtn.textContent = '✕';
+					    removeBtn.title = 'Bedingung entfernen';
+					    removeBtn.style.cssText = 'background:#ffcdd2; border:none; border-radius:50%; width:20px; height:20px; font-size:0.7rem; cursor:pointer; margin-left:2px; color:#c62828; font-weight:bold; line-height:1;';
+					    removeBtn.setAttribute('draggable', 'false');
+					    removeBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+					    removeBtn.addEventListener('click', function(e) {
+						e.stopPropagation();
+						groups.splice(gIdx, 1);
+						if (gIdx > 0) {
+						    logics.splice(gIdx - 1, 1);
+						} else if (logics.length > 0) {
+						    logics.splice(0, 1);
+						}
+						renderConditionGroups();
+						syncBlocksToDSL();
+					    });
+					    condGroupsContainer.appendChild(removeBtn);
+					}
+				    })(g);
 				}
-				var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
-				content.appendChild(leftSelect);
 
-				var opSelect = buildSelect(operators, condData.op || '==', 'cond-op');
-				content.appendChild(opSelect);
-
-				// RIGHT side
-				var rightVal = condData.right || '"none"';
-				var rightOpts = getCompareValues();
-				var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
-				if (rightIsCustom) {
-					rightOpts.unshift({ value: rightVal, label: '📌 ' + rightVal });
-				}
-				var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
-				content.appendChild(rightSelect);
-
-				// LOGIC CONNECTOR (und / oder / none)
-				var logicOpts = [
-					{ value: '', label: '—' },
-					{ value: 'und', label: 'UND 🔗' },
-					{ value: 'oder', label: 'ODER 🔀' }
-				];
-				var logicVal = condData.logic || '';
-				var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
-				content.appendChild(logicSelect);
-
-				// SECOND CONDITION (hidden if logic is empty)
-				var cond2Wrapper = document.createElement('span');
-				cond2Wrapper.className = 'cond2-wrapper';
-				cond2Wrapper.style.display = logicVal ? 'inline' : 'none';
-
-				var left2Val = condData.left2 || 'rechts';
-				var left2Opts = getLeftSideOptions();
-				var left2IsCustom = !left2Opts.some(function(o) { return o.value === left2Val; });
-				if (left2IsCustom) {
-					left2Opts.unshift({ value: left2Val, label: '📌 ' + left2Val });
-				}
-				var left2Select = buildSelect(left2Opts, left2Val, 'cond-left');
-				cond2Wrapper.appendChild(left2Select);
-
-				var op2Select = buildSelect(operators, condData.op2 || '==', 'cond-op');
-				cond2Wrapper.appendChild(op2Select);
-
-				var right2Val = condData.right2 || '"none"';
-				var right2Opts = getCompareValues();
-				var right2IsCustom = !right2Opts.some(function(o) { return o.value === right2Val; });
-				if (right2IsCustom) {
-					right2Opts.unshift({ value: right2Val, label: '📌 ' + right2Val });
-				}
-				var right2Select = buildSelect(right2Opts, right2Val, 'cond-value');
-				cond2Wrapper.appendChild(right2Select);
-
-				content.appendChild(cond2Wrapper);
-
-				// Toggle visibility of second condition when logic changes
-				logicSelect.addEventListener('change', function() {
-					cond2Wrapper.style.display = this.value ? 'inline' : 'none';
-					syncBlocksToDSL();
+				// "+" Button zum Hinzufügen einer weiteren Bedingung
+				var addBtn = document.createElement('button');
+				addBtn.className = 'cond-add-btn';
+				addBtn.textContent = '+ UND/ODER';
+				addBtn.title = 'Weitere Bedingung hinzufügen';
+				addBtn.style.cssText = 'background:linear-gradient(135deg,#e8f5e9,#c8e6c9); border:2px solid #66bb6a; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:6px; color:#2e7d32; font-weight:800; font-family:inherit;';
+				addBtn.setAttribute('draggable', 'false');
+				addBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+				addBtn.addEventListener('click', function(e) {
+				    e.stopPropagation();
+				    groups.push({ left: 'links', op: '==', right: '"none"' });
+				    logics.push('und');
+				    renderConditionGroups();
+				    syncBlocksToDSL();
 				});
+				condGroupsContainer.appendChild(addBtn);
 
-				var thenSpan = document.createElement('span');
-				thenSpan.className = 'bk';
-				thenSpan.textContent = ' dann';
-				content.appendChild(thenSpan);
-				break;
+				// "( )" Button zum Setzen von Klammern
+				if (groups.length > 1) {
+				    var parenBtn = document.createElement('button');
+				    parenBtn.className = 'cond-paren-btn';
+				    parenBtn.textContent = '( )';
+				    parenBtn.title = 'Klammern setzen: Wähle Start und Ende';
+				    parenBtn.style.cssText = 'background:linear-gradient(135deg,#e3f2fd,#bbdefb); border:2px solid #42a5f5; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:4px; color:#1565c0; font-weight:800; font-family:inherit;';
+				    parenBtn.setAttribute('draggable', 'false');
+				    parenBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+				    parenBtn.addEventListener('click', function(e) {
+					e.stopPropagation();
+					// Einfache Klammer-Logik: Popup mit Start/Ende-Auswahl
+					var startIdx = parseInt(prompt('Klammer ÖFFNEN vor Bedingung Nr. (1-' + groups.length + '):', '1')) - 1;
+					var endIdx = parseInt(prompt('Klammer SCHLIESSEN nach Bedingung Nr. (1-' + groups.length + '):', String(groups.length))) - 1;
+					if (startIdx >= 0 && endIdx >= startIdx && endIdx < groups.length) {
+					    // Alte Klammern an diesen Positionen entfernen
+					    groups[startIdx].parenOpen = true;
+					    groups[endIdx].parenClose = true;
+					    renderConditionGroups();
+					    syncBlocksToDSL();
+					}
+				    });
+				    condGroupsContainer.appendChild(parenBtn);
+				}
+			    }
+
+			    // Speichere groups/logics am Block-Element für spätere Nutzung
+			    block._condGroups = groups;
+			    block._condLogics = logics;
+
+			    renderConditionGroups();
+			    content.appendChild(condGroupsContainer);
+
+			    var thenSpan = document.createElement('span');
+			    thenSpan.className = 'bk';
+			    thenSpan.textContent = ' dann';
+			    content.appendChild(thenSpan);
+			    break;
+
 
 			case 'while':
 				var wCondData = (data && data.condition) || {};
@@ -1370,7 +1515,7 @@
 
 		// Control flow
 		if (line.startsWith('if ')) {
-			var cond = parseConditionString(line.substring(3).trim());
+		    var cond = parseConditionString(line.substring(3).trim());
 			return { type: 'if', data: { condition: cond } };
 		}
 		if (line.startsWith('elif ')) {
@@ -1462,43 +1607,82 @@
 			.replace(/\bist nicht gleich\b/g, '!=')
 			.replace(/\bist nicht\b/g, '!=');
 
-		// Check for 'and' / 'or' compound conditions
-		var andIdx = findLogicalSplit(normalized, ' and ');
-		if (andIdx !== -1) {
-			var leftPart = normalized.substring(0, andIdx).trim();
-			var rightPart = normalized.substring(andIdx + 5).trim();
-			var leftCond = parseSingleCondition(leftPart);
-			var rightCond = parseSingleCondition(rightPart);
-			return {
-				left: leftCond.left,
-				op: leftCond.op,
-				right: leftCond.right,
-				logic: 'und',
-				left2: rightCond.left,
-				op2: rightCond.op,
-				right2: rightCond.right
-			};
+		// Tokenize into groups and logics, respecting parentheses
+		var groups = [];
+		var logics = [];
+		var remaining = normalized;
+
+		while (remaining.length > 0) {
+			remaining = remaining.trim();
+
+			// Check for 'and' or 'or' split
+			var andIdx = findLogicalSplit(remaining, ' and ');
+			var orIdx = findLogicalSplit(remaining, ' or ');
+
+			// Find the first logical split
+			var splitIdx = -1;
+			var splitLen = 0;
+			var splitLogic = '';
+
+			if (andIdx !== -1 && (orIdx === -1 || andIdx < orIdx)) {
+				splitIdx = andIdx;
+				splitLen = 5; // ' and '
+				splitLogic = 'und';
+			} else if (orIdx !== -1) {
+				splitIdx = orIdx;
+				splitLen = 4; // ' or '
+				splitLogic = 'oder';
+			}
+
+			if (splitIdx !== -1) {
+				var leftPart = remaining.substring(0, splitIdx).trim();
+				remaining = remaining.substring(splitIdx + splitLen).trim();
+
+				var group = parseSingleConditionWithParens(leftPart);
+				groups.push(group);
+				logics.push(splitLogic);
+			} else {
+				// Letzter Teil
+				var group = parseSingleConditionWithParens(remaining);
+				groups.push(group);
+				remaining = '';
+			}
 		}
 
-		var orIdx = findLogicalSplit(normalized, ' or ');
-		if (orIdx !== -1) {
-			var leftPart = normalized.substring(0, orIdx).trim();
-			var rightPart = normalized.substring(orIdx + 4).trim();
-			var leftCond = parseSingleCondition(leftPart);
-			var rightCond = parseSingleCondition(rightPart);
-			return {
-				left: leftCond.left,
-				op: leftCond.op,
-				right: leftCond.right,
-				logic: 'oder',
-				left2: rightCond.left,
-				op2: rightCond.op,
-				right2: rightCond.right
-			};
+		if (groups.length === 1 && logics.length === 0) {
+			// Einfache Bedingung - Rückwärtskompatibilität
+			return groups[0];
 		}
 
-		// Simple condition
-		return parseSingleCondition(normalized);
+		return {
+			groups: groups,
+			logics: logics,
+			// Rückwärtskompatibilität für erste Bedingung
+			left: groups[0].left,
+			op: groups[0].op,
+			right: groups[0].right
+		};
+	}
+
+	function parseSingleConditionWithParens(condStr) {
+		condStr = condStr.trim();
+		var parenOpen = false;
+		var parenClose = false;
+
+		// Klammern erkennen und entfernen
+		if (condStr.startsWith('(')) {
+			parenOpen = true;
+			condStr = condStr.substring(1).trim();
+		}
+		if (condStr.endsWith(')')) {
+			parenClose = true;
+			condStr = condStr.substring(0, condStr.length - 1).trim();
+		}
+
+		var result = parseSingleCondition(condStr);
+		if (parenOpen) result.parenOpen = true;
+		if (parenClose) result.parenClose = true;
+		return result;
 	}
 
 	function parseSingleCondition(condStr) {

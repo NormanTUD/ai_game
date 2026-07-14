@@ -278,3 +278,50 @@ a:hover {
 .workspace-block.dragging .block-delete {
 	pointer-events: none;
 }
+
+
+/* ═══ Condition Groups Container ═══ */
+.cond-groups-container {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 0;
+}
+
+.cond-groups-container select {
+    margin: 1px;
+}
+
+.cond-add-btn:hover {
+    background: linear-gradient(135deg, #c8e6c9, #a5d6a7) !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(102, 187, 106, 0.3);
+}
+
+.cond-paren-btn:hover {
+    background: linear-gradient(135deg, #bbdefb, #90caf9) !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(66, 165, 245, 0.3);
+}
+
+.cond-remove-btn:hover {
+    background: #ef5350 !important;
+    color: #fff !important;
+    transform: scale(1.15);
+}
+
+.cond-paren {
+    transition: all 0.2s;
+}
+
+.cond-paren:hover {
+    color: #e53935 !important;
+    transform: scale(1.3);
+}
+
+/* Workspace blocks mit vielen Bedingungen brauchen mehr Platz */
+.workspace-block.cat-control .block-content {
+    flex-wrap: wrap;
+    gap: 3px;
+}
