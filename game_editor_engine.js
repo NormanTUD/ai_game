@@ -1244,13 +1244,94 @@
 		}
 	}
 
+	// Bestimmt ob eine Detection "links" oder "rechts" ist basierend auf
+	// der Überlappung der Bounding Box mit der jeweiligen Bildhälfte
+	function getDetectionSide(det) {
+		var midX = 0.5; // Bildmitte (normalisiert 0-1)
+		var boxCenterX = (det.xMin + det.xMax) / 2;
+
+		// Berechne Überlappung mit linker Hälfte (0 bis 0.5)
+		var overlapLeft = Math.max(0, Math.min(det.xMax, midX) - Math.max(det.xMin, 0));
+		// Berechne Überlappung mit rechter Hälfte (0.5 bis 1)
+		var overlapRight = Math.max(0, Math.min(det.xMax, 1) - Math.max(det.xMin, midX));
+
+		// Boxbreite für Prozentberechnung
+		var boxWidth = det.xMax - det.xMin;
+		if (boxWidth <= 0) return 'none';
+
+		var leftPercent = overlapLeft / boxWidth;
+		var rightPercent = overlapRight / boxWidth;
+
+		// Threshold: Mindestens 60% der Box muss auf einer Seite sein
+		// um eindeutig zugeordnet zu werden
+		if (leftPercent > rightPercent) return 'left';
+		if (rightPercent > leftPercent) return 'right';
+		return 'center'; // genau in der Mitte
+	}
+
+	function assignLeftRightDetections(vars, detections) {
+		var leftDet = null;
+		var rightDet = null;
+
+		if (detections.length === 1) {
+			// Nur eine Detection: Seite bestimmen über Überlappung
+			var side = getDetectionSide(detections[0]);
+			if (side === 'left') {
+				leftDet = detections[0];
+			} else if (side === 'right') {
+				rightDet = detections[0];
+			} else {
+				// Genau in der Mitte - als "center" behandeln, keiner Seite zuordnen
+				// oder alternativ: dem näheren zuordnen basierend auf centerX
+				var cx = (detections[0].xMin + detections[0].xMax) / 2;
+				if (cx < 0.5) leftDet = detections[0];
+				else rightDet = detections[0];
+			}
+		} else if (detections.length >= 2) {
+			// Zwei oder mehr Detections: die mit dem kleinsten xMin ist links,
+			// die mit dem größten xMax ist rechts
+			// Aber NUR wenn sie tatsächlich auf der jeweiligen Seite sind
+			var sorted = detections.slice().sort(function(a, b) {
+				return ((a.xMin + a.xMax) / 2) - ((b.xMin + b.xMax) / 2);
+			});
+			leftDet = sorted[0];
+			rightDet = sorted[sorted.length - 1];
+
+			// Sicherheitscheck: Wenn beide auf derselben Seite sind
+			if (leftDet === rightDet) {
+				rightDet = null;
+			}
+		}
+
+		vars['leftmost_detection'] = leftDet ? leftDet.label : 'none';
+		vars['leftmost_detection.probability'] = leftDet ? leftDet.score : 0;
+		vars['rightmost_detection'] = rightDet ? rightDet.label : 'none';
+		vars['rightmost_detection.probability'] = rightDet ? rightDet.score : 0;
+	}
+
 	function buildDSLContext(detections) {
 		var vars = {};
 		copyPersistentVars(vars);
 		initDetectionVars(vars);
 		if (!detections || detections.length === 0) return vars;
 		vars['detection_count'] = detections.length;
-		assignExtremeVars(vars, findExtremeDetections(detections));
+
+		// Neue links/rechts Logik
+		assignLeftRightDetections(vars, detections);
+
+		// Restliche Extreme (top, bottom, largest, etc.) normal berechnen
+		var extremes = findExtremeDetections(detections);
+		vars['topmost_detection'] = extremes.topmost.label;
+		vars['topmost_detection.probability'] = extremes.topmost.score;
+		vars['bottommost_detection'] = extremes.bottommost.label;
+		vars['bottommost_detection.probability'] = extremes.bottommost.score;
+		vars['largest_detection'] = extremes.largest.label;
+		vars['largest_detection.probability'] = extremes.largest.score;
+		vars['smallest_detection'] = extremes.smallest.label;
+		vars['smallest_detection.probability'] = extremes.smallest.score;
+		vars['highest_conf_detection'] = extremes.highest_conf.label;
+		vars['highest_conf_detection.probability'] = extremes.highest_conf.score;
+
 		return vars;
 	}
 
