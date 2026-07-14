@@ -1377,9 +1377,16 @@
 		}
 	}
 
+	var lastOutputHash = '';
+
 	function handleScriptResults(results) {
 		if (results.output && results.output.length > 0) {
-			for (var i = 0; i < results.output.length; i++) appendOutput(results.output[i]);
+			// Nur ausgeben wenn sich etwas geändert hat
+			var newHash = results.output.join('|');
+			if (newHash !== lastOutputHash) {
+				lastOutputHash = newHash;
+				for (var i = 0; i < results.output.length; i++) appendOutput(results.output[i]);
+			}
 		}
 		if (results.showTextCommands && results.showTextCommands.length > 0) {
 			var lastCmd = results.showTextCommands[results.showTextCommands.length - 1];
