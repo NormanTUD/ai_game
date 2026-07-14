@@ -49,6 +49,107 @@
 		});
 	}
 
+	function parseSingleConditionWithParens(condStr) {
+		condStr = condStr.trim();
+		var parenOpenCount = 0;
+		var parenCloseCount = 0;
+
+		// Mehrere öffnende Klammern erkennen und entfernen
+		while (condStr.startsWith('(')) {
+			parenOpenCount++;
+			condStr = condStr.substring(1).trim();
+		}
+		// Mehrere schließende Klammern erkennen und entfernen
+		while (condStr.endsWith(')')) {
+			parenCloseCount++;
+			condStr = condStr.substring(0, condStr.length - 1).trim();
+		}
+
+		var result = parseSingleCondition(condStr);
+		if (parenOpenCount > 0) result.parenOpen = parenOpenCount;
+		if (parenCloseCount > 0) result.parenClose = parenCloseCount;
+		return result;
+	}
+
+	// Hilfsfunktion: Finde die zugehörige schließende Klammer für die N-te öffnende bei startIdx
+	// depthOffset = welche der mehreren öffnenden Klammern an startIdx gemeint ist (0 = äußerste)
+	function findParenClosePairAtDepth(startIdx, depthOffset) {
+		var depth = 0;
+		for (var i = startIdx; i < groups.length; i++) {
+			var openHere = groups[i].parenOpen || 0;
+			var closeHere = groups[i].parenClose || 0;
+			depth += openHere;
+			// Beim Schließen: prüfe ob wir auf depth 1 kommen (= das Paar zur äußersten öffnenden)
+			for (var c = 0; c < closeHere; c++) {
+				depth--;
+				if (depth === depthOffset && i >= startIdx) return i;
+			}
+		}
+		return -1;
+	}
+
+	// Hilfsfunktion: Finde die zugehörige öffnende Klammer für die N-te schließende bei endIdx
+	function findParenOpenPairAtDepth(endIdx, depthOffset) {
+		var depth = 0;
+		for (var i = endIdx; i >= 0; i--) {
+			var closeHere = groups[i].parenClose || 0;
+			var openHere = groups[i].parenOpen || 0;
+			depth += closeHere;
+			for (var o = 0; o < openHere; o++) {
+				depth--;
+				if (depth === depthOffset && i <= endIdx) return i;
+			}
+		}
+		return -1;
+	}
+
+	// Alte Funktionen für Kompatibilität (werden intern noch gebraucht)
+	function findParenClosePair(startIdx) {
+		return findParenClosePairAtDepth(startIdx, 0);
+	}
+
+	function findParenOpenPair(endIdx) {
+		return findParenOpenPairAtDepth(endIdx, 0);
+	}
+
+	// Validierung: Prüfe ob neue Klammern korrekt verschachtelt sind (keine Überlappung)
+	function isValidParenPlacement(newStart, newEnd) {
+		// Sammle alle bestehenden Klammer-Paare
+		var existingPairs = [];
+		for (var i = 0; i < groups.length; i++) {
+			var openCount = groups[i].parenOpen || 0;
+			// Für jede öffnende Klammer an Position i das zugehörige Ende finden
+			var tempDepth = 0;
+			for (var j = i; j < groups.length; j++) {
+				tempDepth += (groups[j].parenOpen || 0);
+				var closeHere = groups[j].parenClose || 0;
+				for (var c = 0; c < closeHere; c++) {
+					tempDepth--;
+					if (tempDepth < openCount && j >= i) {
+						// Gefundenes Paar
+						existingPairs.push({ start: i, end: j });
+						openCount--;
+						if (openCount === 0) break;
+					}
+				}
+				if (openCount === 0) break;
+			}
+		}
+
+		// Prüfe ob das neue Paar mit bestehenden überlappt (aber Verschachtelung ist OK!)
+		for (var p = 0; p < existingPairs.length; p++) {
+			var existing = existingPairs[p];
+			// Überlappung: neues Paar startet innerhalb eines bestehenden aber endet außerhalb (oder umgekehrt)
+			var newStartInside = newStart > existing.start && newStart <= existing.end;
+			var newEndInside = newEnd >= existing.start && newEnd < existing.end;
+
+			if (newStartInside && !newEndInside) return false; // Überlappt links raus
+			if (!newStartInside && newEndInside && newStart < existing.start) return false; // Überlappt rechts raus
+		}
+
+		return true;
+	}
+
 	function formatOutputLine(text) {
 		return '[' + new Date().toLocaleTimeString() + '] ' + text;
 	}

@@ -549,9 +549,11 @@
 
 					for (var g = 0; g < groups.length; g++) {
 						var part = '';
-						if (groups[g].parenOpen) part += '(';
+						var openCount = groups[g].parenOpen || 0;
+						var closeCount = groups[g].parenClose || 0;
+						part += '('.repeat(openCount);
 						part += (groups[g].left || 'links') + ' ' + (groups[g].op || '==') + ' ' + (groups[g].right || '"none"');
-						if (groups[g].parenClose) part += ')';
+						part += ')'.repeat(closeCount);
 						condParts.push(part);
 					}
 
@@ -1064,25 +1066,28 @@
 							groupWrapper.setAttribute('data-group-idx', gIdx);
 							groupWrapper.style.cssText = 'display:inline-flex; align-items:center; gap:2px; position:relative; padding:2px 4px; border-radius:6px; transition:all 0.2s;';
 
-							// Klammer-Öffnung wenn nötig
-							if (groups[gIdx].parenOpen) {
-								var parenOpenSpan = document.createElement('span');
-								parenOpenSpan.className = 'cond-paren cond-paren-open';
-								parenOpenSpan.textContent = '(';
-								parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
-								parenOpenSpan.title = 'Klammer-Paar entfernen';
-								parenOpenSpan.addEventListener('click', function(e) {
-									e.stopPropagation();
-									// Finde das zugehörige Paar und entferne BEIDE Seiten
-									var pairIdx = findParenClosePair(gIdx);
-									groups[gIdx].parenOpen = false;
-									if (pairIdx !== -1) {
-										groups[pairIdx].parenClose = false;
-									}
-									renderConditionGroups();
-									syncBlocksToDSL();
-								});
-								condGroupsContainer.appendChild(parenOpenSpan);
+							// Klammer-Öffnungen (mehrere möglich)
+							var openCount = groups[gIdx].parenOpen || 0;
+							for (var p = 0; p < openCount; p++) {
+								(function(parenIdx) {
+									var parenOpenSpan = document.createElement('span');
+									parenOpenSpan.className = 'cond-paren cond-paren-open';
+									parenOpenSpan.textContent = '(';
+									parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
+									parenOpenSpan.title = 'Klammer-Paar entfernen';
+									parenOpenSpan.addEventListener('click', function(e) {
+										e.stopPropagation();
+										// Finde das zugehörige Paar und entferne BEIDE Seiten
+										var pairIdx = findParenClosePairAtDepth(gIdx, parenIdx);
+										groups[gIdx].parenOpen = Math.max(0, (groups[gIdx].parenOpen || 0) - 1);
+										if (pairIdx !== -1) {
+											groups[pairIdx].parenClose = Math.max(0, (groups[pairIdx].parenClose || 0) - 1);
+										}
+										renderConditionGroups();
+										syncBlocksToDSL();
+									});
+									condGroupsContainer.appendChild(parenOpenSpan);
+								})(p);
 							}
 
 							// Logik-Konnektor VOR dieser Gruppe (ab Index 1)
@@ -1135,25 +1140,28 @@
 
 							condGroupsContainer.appendChild(groupWrapper);
 
-							// Klammer-Schließung wenn nötig
-							if (groups[gIdx].parenClose) {
-								var parenCloseSpan = document.createElement('span');
-								parenCloseSpan.className = 'cond-paren cond-paren-close';
-								parenCloseSpan.textContent = ')';
-								parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
-								parenCloseSpan.title = 'Klammer-Paar entfernen';
-								parenCloseSpan.addEventListener('click', function(e) {
-									e.stopPropagation();
-									// Finde das zugehörige Paar und entferne BEIDE Seiten
-									var pairIdx = findParenOpenPair(gIdx);
-									groups[gIdx].parenClose = false;
-									if (pairIdx !== -1) {
-										groups[pairIdx].parenOpen = false;
-									}
-									renderConditionGroups();
-									syncBlocksToDSL();
-								});
-								condGroupsContainer.appendChild(parenCloseSpan);
+							// Klammer-Schließungen (mehrere möglich)
+							var closeCount = groups[gIdx].parenClose || 0;
+							for (var p = 0; p < closeCount; p++) {
+								(function(parenIdx) {
+									var parenCloseSpan = document.createElement('span');
+									parenCloseSpan.className = 'cond-paren cond-paren-close';
+									parenCloseSpan.textContent = ')';
+									parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
+									parenCloseSpan.title = 'Klammer-Paar entfernen';
+									parenCloseSpan.addEventListener('click', function(e) {
+										e.stopPropagation();
+										// Finde das zugehörige Paar und entferne BEIDE Seiten
+										var pairIdx = findParenOpenPairAtDepth(gIdx, parenIdx);
+										groups[gIdx].parenClose = Math.max(0, (groups[gIdx].parenClose || 0) - 1);
+										if (pairIdx !== -1) {
+											groups[pairIdx].parenOpen = Math.max(0, (groups[pairIdx].parenOpen || 0) - 1);
+										}
+										renderConditionGroups();
+										syncBlocksToDSL();
+									});
+									condGroupsContainer.appendChild(parenCloseSpan);
+								})(p);
 							}
 
 							// Entfernen-Button (nur wenn mehr als 1 Gruppe)
@@ -1168,13 +1176,17 @@
 								removeBtn.addEventListener('click', function(e) {
 									e.stopPropagation();
 									// Klammern aufräumen bevor die Gruppe entfernt wird
-									if (groups[gIdx].parenOpen) {
-										var closePair = findParenClosePair(gIdx);
-										if (closePair !== -1) groups[closePair].parenClose = false;
+									var openToRemove = groups[gIdx].parenOpen || 0;
+									var closeToRemove = groups[gIdx].parenClose || 0;
+									// Für jede öffnende Klammer hier: zugehörige schließende finden und entfernen
+									for (var r = 0; r < openToRemove; r++) {
+										var closePair = findParenClosePairAtDepth(gIdx, 0);
+										if (closePair !== -1) groups[closePair].parenClose = Math.max(0, (groups[closePair].parenClose || 0) - 1);
 									}
-									if (groups[gIdx].parenClose) {
-										var openPair = findParenOpenPair(gIdx);
-										if (openPair !== -1) groups[openPair].parenOpen = false;
+									// Für jede schließende Klammer hier: zugehörige öffnende finden und entfernen
+									for (var r = 0; r < closeToRemove; r++) {
+										var openPair = findParenOpenPairAtDepth(gIdx, 0);
+										if (openPair !== -1) groups[openPair].parenOpen = Math.max(0, (groups[openPair].parenOpen || 0) - 1);
 									}
 									groups.splice(gIdx, 1);
 									if (gIdx > 0) {
@@ -1280,8 +1292,8 @@
 											if (gIdx >= block._parenStartIdx) {
 												// Validierung: Prüfe ob neue Klammern mit bestehenden überlappen
 												if (isValidParenPlacement(block._parenStartIdx, gIdx)) {
-													groups[block._parenStartIdx].parenOpen = true;
-													groups[gIdx].parenClose = true;
+													groups[block._parenStartIdx].parenOpen = (groups[block._parenStartIdx].parenOpen || 0) + 1;
+													groups[gIdx].parenClose = (groups[gIdx].parenClose || 0) + 1;
 													exitParenMode(block);
 													renderConditionGroups();
 													syncBlocksToDSL();
