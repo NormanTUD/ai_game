@@ -1455,12 +1455,12 @@
 		appendOutput("🎮 Spiel läuft!");
 		scheduleNextStep();
 
-		    var workspace = document.getElementById('block_workspace');
-    if (workspace) {
-        workspace.style.display = 'block';
-        workspace.style.visibility = 'visible';
-        workspace.style.opacity = '1';
-    }
+		var workspace = document.getElementById('block_workspace');
+		if (workspace) {
+			workspace.style.display = 'block';
+			workspace.style.visibility = 'visible';
+			workspace.style.opacity = '1';
+		}
 	}
 
 	async function scheduleNextStep() {
@@ -1739,33 +1739,33 @@
 
 })();
 
-// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
+			// ─── Confetti-Effekt beim Laden ─────────────────────────────────────
 
-function showConfetti() {
-    if (typeof window.celebrate === 'function') {
-        window.celebrate('confetti');
-    }
-}
+			function showConfetti() {
+				if (typeof window.celebrate === 'function') {
+					window.celebrate('confetti');
+				}
+			}
 
-// ─── Loading Overlay Helpers ────────────────────────────────────────
+			// ─── Loading Overlay Helpers ────────────────────────────────────────
 
-function showLoadingOverlay(message) {
-    var overlay = document.getElementById('loading_overlay');
-    if (!overlay) return;
-    var title = overlay.querySelector('.loading-title');
-    if (title && message) title.textContent = message;
-    overlay.classList.remove('hidden');
-}
+			function showLoadingOverlay(message) {
+				var overlay = document.getElementById('loading_overlay');
+				if (!overlay) return;
+				var title = overlay.querySelector('.loading-title');
+				if (title && message) title.textContent = message;
+				overlay.classList.remove('hidden');
+			}
 
-function updateLoadingMessage(message) {
-    var overlay = document.getElementById('loading_overlay');
-    if (!overlay) return;
-    var subtitle = overlay.querySelector('.loading-subtitle');
-    if (subtitle) subtitle.textContent = message;
-}
+			function updateLoadingMessage(message) {
+				var overlay = document.getElementById('loading_overlay');
+				if (!overlay) return;
+				var subtitle = overlay.querySelector('.loading-subtitle');
+				if (subtitle) subtitle.textContent = message;
+			}
 
-function hideLoadingOverlay() {
-    var overlay = document.getElementById('loading_overlay');
-    if (!overlay) return;
-    overlay.classList.add('hidden');
-}
+			function hideLoadingOverlay() {
+				var overlay = document.getElementById('loading_overlay');
+				if (!overlay) return;
+				overlay.classList.add('hidden');
+			}
