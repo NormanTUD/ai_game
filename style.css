@@ -378,3 +378,37 @@ a:hover {
     transform: scale(1.2);
     cursor: pointer;
 }
+
+/* ═══ Condition Group Wrapper ═══ */
+.cond-group-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+    padding: 2px 4px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.cond-group-wrapper.paren-selectable {
+    cursor: pointer !important;
+    outline: 2px dashed #ff9800;
+    outline-offset: 2px;
+    background: rgba(255, 152, 0, 0.05);
+}
+
+.cond-group-wrapper.paren-selectable:hover {
+    outline-color: #f57c00;
+    background: rgba(255, 152, 0, 0.15) !important;
+    transform: scale(1.03);
+}
+
+.cond-group-wrapper.paren-selected-start {
+    outline: 3px solid #4caf50 !important;
+    background: rgba(76, 175, 80, 0.15) !important;
+}
+
+.cond-group-wrapper.paren-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}

@@ -960,14 +960,8 @@
 	}
 
 	function getConditionGroupRow(container, idx) {
-		// Finde die Selects der Gruppe mit Index idx
-		var leftSelects = container.querySelectorAll('select.cond-left');
-		if (idx >= leftSelects.length) return null;
-		// Erstelle einen visuellen Wrapper um die 3 Selects dieser Gruppe
-		var leftEl = leftSelects[idx];
-		// Gehe zum nächsten Geschwister (op) und danach (value)
-		var parent = leftEl.parentElement;
-		return parent; // Der Container selbst
+		var wrappers = container.querySelectorAll('.cond-group-wrapper');
+		return (idx < wrappers.length) ? wrappers[idx] : null;
 	}
 
 	function exitParenMode(block) {
@@ -978,13 +972,18 @@
 		var markers = block.querySelectorAll('.paren-select-marker');
 		for (var i = 0; i < markers.length; i++) markers[i].remove();
 
-		// Klassen entfernen
-		var selectables = block.querySelectorAll('.paren-selectable, .paren-selected-start, .paren-disabled');
-		for (var i = 0; i < selectables.length; i++) {
-			selectables[i].classList.remove('paren-selectable', 'paren-selected-start', 'paren-disabled');
-			if (selectables[i]._parenClickHandler) {
-				selectables[i].removeEventListener('click', selectables[i]._parenClickHandler);
-				delete selectables[i]._parenClickHandler;
+		// Klassen entfernen und pointer-events wiederherstellen
+		var wrappers = block.querySelectorAll('.cond-group-wrapper');
+		for (var i = 0; i < wrappers.length; i++) {
+			wrappers[i].classList.remove('paren-selectable', 'paren-selected-start', 'paren-disabled');
+			if (wrappers[i]._parenClickHandler) {
+				wrappers[i].removeEventListener('click', wrappers[i]._parenClickHandler);
+				delete wrappers[i]._parenClickHandler;
+			}
+			// ═══ Selects wieder aktivieren ═══
+			var selects = wrappers[i].querySelectorAll('select');
+			for (var s = 0; s < selects.length; s++) {
+				selects[s].style.pointerEvents = '';
 			}
 		}
 
@@ -1054,226 +1053,230 @@
 				logics.push(condData.logic);
 			    }
 
-			    function renderConditionGroups() {
-				condGroupsContainer.innerHTML = '';
+				function renderConditionGroups() {
+					condGroupsContainer.innerHTML = '';
 
-				for (var g = 0; g < groups.length; g++) {
-				    (function(gIdx) {
-					// Klammer-Öffnung wenn nötig
-					if (groups[gIdx].parenOpen) {
-					    var parenOpenSpan = document.createElement('span');
-					    parenOpenSpan.className = 'cond-paren cond-paren-open';
-					    parenOpenSpan.textContent = '(';
-					    parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
-					    parenOpenSpan.title = 'Klammer entfernen';
-					    parenOpenSpan.addEventListener('click', function(e) {
+					for (var g = 0; g < groups.length; g++) {
+						(function(gIdx) {
+							// ═══ NEU: Wrapper pro Bedingungsgruppe ═══
+							var groupWrapper = document.createElement('div');
+							groupWrapper.className = 'cond-group-wrapper';
+							groupWrapper.setAttribute('data-group-idx', gIdx);
+							groupWrapper.style.cssText = 'display:inline-flex; align-items:center; gap:2px; position:relative; padding:2px 4px; border-radius:6px; transition:all 0.2s;';
+
+							// Klammer-Öffnung wenn nötig
+							if (groups[gIdx].parenOpen) {
+								var parenOpenSpan = document.createElement('span');
+								parenOpenSpan.className = 'cond-paren cond-paren-open';
+								parenOpenSpan.textContent = '(';
+								parenOpenSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-right:2px; cursor:pointer;';
+								parenOpenSpan.title = 'Klammer entfernen';
+								parenOpenSpan.addEventListener('click', function(e) {
+									e.stopPropagation();
+									groups[gIdx].parenOpen = false;
+									renderConditionGroups();
+									syncBlocksToDSL();
+								});
+								condGroupsContainer.appendChild(parenOpenSpan);
+							}
+
+							// Logik-Konnektor VOR dieser Gruppe (ab Index 1)
+							if (gIdx > 0) {
+								var logicOpts = [
+									{ value: 'und', label: 'UND 🔗' },
+									{ value: 'oder', label: 'ODER 🔀' }
+								];
+								var logicVal = logics[gIdx - 1] || 'und';
+								var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
+								logicSelect.style.margin = '0 4px';
+								logicSelect.addEventListener('change', function() {
+									logics[gIdx - 1] = this.value;
+									syncBlocksToDSL();
+								});
+								condGroupsContainer.appendChild(logicSelect);
+							}
+
+							// LEFT
+							var leftVal = groups[gIdx].left || 'links';
+							var leftOpts = getLeftSideOptions();
+							var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
+							if (leftIsCustom) leftOpts.unshift({ value: leftVal, label: '📌 ' + leftVal });
+							var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
+							leftSelect.addEventListener('change', function() {
+								groups[gIdx].left = this.value;
+								syncBlocksToDSL();
+							});
+							groupWrapper.appendChild(leftSelect);
+
+							// OPERATOR
+							var opSelect = buildSelect(operators, groups[gIdx].op || '==', 'cond-op');
+							opSelect.addEventListener('change', function() {
+								groups[gIdx].op = this.value;
+								syncBlocksToDSL();
+							});
+							groupWrapper.appendChild(opSelect);
+
+							// RIGHT
+							var rightVal = groups[gIdx].right || '"none"';
+							var rightOpts = getCompareValues();
+							var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
+							if (rightIsCustom) rightOpts.unshift({ value: rightVal, label: '📌 ' + rightVal });
+							var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
+							rightSelect.addEventListener('change', function() {
+								groups[gIdx].right = this.value;
+								syncBlocksToDSL();
+							});
+							groupWrapper.appendChild(rightSelect);
+
+							condGroupsContainer.appendChild(groupWrapper);
+
+							// Klammer-Schließung wenn nötig
+							if (groups[gIdx].parenClose) {
+								var parenCloseSpan = document.createElement('span');
+								parenCloseSpan.className = 'cond-paren cond-paren-close';
+								parenCloseSpan.textContent = ')';
+								parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
+								parenCloseSpan.title = 'Klammer entfernen';
+								parenCloseSpan.addEventListener('click', function(e) {
+									e.stopPropagation();
+									groups[gIdx].parenClose = false;
+									renderConditionGroups();
+									syncBlocksToDSL();
+								});
+								condGroupsContainer.appendChild(parenCloseSpan);
+							}
+
+							// Entfernen-Button (nur wenn mehr als 1 Gruppe)
+							if (groups.length > 1) {
+								var removeBtn = document.createElement('button');
+								removeBtn.className = 'cond-remove-btn';
+								removeBtn.textContent = '✕';
+								removeBtn.title = 'Bedingung entfernen';
+								removeBtn.style.cssText = 'background:#ffcdd2; border:none; border-radius:50%; width:20px; height:20px; font-size:0.7rem; cursor:pointer; margin-left:2px; color:#c62828; font-weight:bold; line-height:1;';
+								removeBtn.setAttribute('draggable', 'false');
+								removeBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+								removeBtn.addEventListener('click', function(e) {
+									e.stopPropagation();
+									groups.splice(gIdx, 1);
+									if (gIdx > 0) {
+										logics.splice(gIdx - 1, 1);
+									} else if (logics.length > 0) {
+										logics.splice(0, 1);
+									}
+									renderConditionGroups();
+									syncBlocksToDSL();
+								});
+								condGroupsContainer.appendChild(removeBtn);
+							}
+						})(g);
+					}
+
+					// "+" Button zum Hinzufügen einer weiteren Bedingung
+					var addBtn = document.createElement('button');
+					addBtn.className = 'cond-add-btn';
+					addBtn.textContent = '+ UND/ODER';
+					addBtn.title = 'Weitere Bedingung hinzufügen';
+					addBtn.style.cssText = 'background:linear-gradient(135deg,#e8f5e9,#c8e6c9); border:2px solid #66bb6a; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:6px; color:#2e7d32; font-weight:800; font-family:inherit;';
+					addBtn.setAttribute('draggable', 'false');
+					addBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+					addBtn.addEventListener('click', function(e) {
 						e.stopPropagation();
-						groups[gIdx].parenOpen = false;
+						groups.push({ left: 'links', op: '==', right: '"none"' });
+						logics.push('und');
 						renderConditionGroups();
 						syncBlocksToDSL();
-					    });
-					    condGroupsContainer.appendChild(parenOpenSpan);
-					}
-
-					// Logik-Konnektor VOR dieser Gruppe (ab Index 1)
-					if (gIdx > 0) {
-					    var logicOpts = [
-						{ value: 'und', label: 'UND 🔗' },
-						{ value: 'oder', label: 'ODER 🔀' }
-					    ];
-					    var logicVal = logics[gIdx - 1] || 'und';
-					    var logicSelect = buildSelect(logicOpts, logicVal, 'cond-logic');
-					    logicSelect.style.margin = '0 4px';
-					    logicSelect.addEventListener('change', function() {
-						logics[gIdx - 1] = this.value;
-						syncBlocksToDSL();
-					    });
-					    condGroupsContainer.appendChild(logicSelect);
-					}
-
-					// LEFT
-					var leftVal = groups[gIdx].left || 'links';
-					var leftOpts = getLeftSideOptions();
-					var leftIsCustom = !leftOpts.some(function(o) { return o.value === leftVal; });
-					if (leftIsCustom) leftOpts.unshift({ value: leftVal, label: '📌 ' + leftVal });
-					var leftSelect = buildSelect(leftOpts, leftVal, 'cond-left');
-					leftSelect.addEventListener('change', function() {
-					    groups[gIdx].left = this.value;
-					    syncBlocksToDSL();
 					});
-					condGroupsContainer.appendChild(leftSelect);
+					condGroupsContainer.appendChild(addBtn);
 
-					// OPERATOR
-					var opSelect = buildSelect(operators, groups[gIdx].op || '==', 'cond-op');
-					opSelect.addEventListener('change', function() {
-					    groups[gIdx].op = this.value;
-					    syncBlocksToDSL();
-					});
-					condGroupsContainer.appendChild(opSelect);
-
-					// RIGHT
-					var rightVal = groups[gIdx].right || '"none"';
-					var rightOpts = getCompareValues();
-					var rightIsCustom = !rightOpts.some(function(o) { return o.value === rightVal; });
-					if (rightIsCustom) rightOpts.unshift({ value: rightVal, label: '📌 ' + rightVal });
-					var rightSelect = buildSelect(rightOpts, rightVal, 'cond-value');
-					rightSelect.addEventListener('change', function() {
-					    groups[gIdx].right = this.value;
-					    syncBlocksToDSL();
-					});
-					condGroupsContainer.appendChild(rightSelect);
-
-					// Klammer-Schließung wenn nötig
-					if (groups[gIdx].parenClose) {
-					    var parenCloseSpan = document.createElement('span');
-					    parenCloseSpan.className = 'cond-paren cond-paren-close';
-					    parenCloseSpan.textContent = ')';
-					    parenCloseSpan.style.cssText = 'font-weight:900; font-size:1.2em; color:#7c4dff; margin-left:2px; cursor:pointer;';
-					    parenCloseSpan.title = 'Klammer entfernen';
-					    parenCloseSpan.addEventListener('click', function(e) {
-						e.stopPropagation();
-						groups[gIdx].parenClose = false;
-						renderConditionGroups();
-						syncBlocksToDSL();
-					    });
-					    condGroupsContainer.appendChild(parenCloseSpan);
-					}
-
-					// Entfernen-Button (nur wenn mehr als 1 Gruppe)
+					// "( )" Button zum Setzen von Klammern
 					if (groups.length > 1) {
-					    var removeBtn = document.createElement('button');
-					    removeBtn.className = 'cond-remove-btn';
-					    removeBtn.textContent = '✕';
-					    removeBtn.title = 'Bedingung entfernen';
-					    removeBtn.style.cssText = 'background:#ffcdd2; border:none; border-radius:50%; width:20px; height:20px; font-size:0.7rem; cursor:pointer; margin-left:2px; color:#c62828; font-weight:bold; line-height:1;';
-					    removeBtn.setAttribute('draggable', 'false');
-					    removeBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-					    removeBtn.addEventListener('click', function(e) {
-						e.stopPropagation();
-						groups.splice(gIdx, 1);
-						if (gIdx > 0) {
-						    logics.splice(gIdx - 1, 1);
-						} else if (logics.length > 0) {
-						    logics.splice(0, 1);
-						}
-						renderConditionGroups();
-						syncBlocksToDSL();
-					    });
-					    condGroupsContainer.appendChild(removeBtn);
-					}
-				    })(g);
-				}
+						var parenBtn = document.createElement('button');
+						parenBtn.className = 'cond-paren-btn';
+						parenBtn.textContent = '( )';
+						parenBtn.title = 'Klammern setzen: Wähle Start und Ende';
+						parenBtn.style.cssText = 'background:linear-gradient(135deg,#e3f2fd,#bbdefb); border:2px solid #42a5f5; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:4px; color:#1565c0; font-weight:800; font-family:inherit;';
+						parenBtn.setAttribute('draggable', 'false');
+						parenBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+						parenBtn.addEventListener('click', function(e) {
+							e.stopPropagation();
 
-				// "+" Button zum Hinzufügen einer weiteren Bedingung
-				var addBtn = document.createElement('button');
-				addBtn.className = 'cond-add-btn';
-				addBtn.textContent = '+ UND/ODER';
-				addBtn.title = 'Weitere Bedingung hinzufügen';
-				addBtn.style.cssText = 'background:linear-gradient(135deg,#e8f5e9,#c8e6c9); border:2px solid #66bb6a; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:6px; color:#2e7d32; font-weight:800; font-family:inherit;';
-				addBtn.setAttribute('draggable', 'false');
-				addBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-				addBtn.addEventListener('click', function(e) {
-				    e.stopPropagation();
-				    groups.push({ left: 'links', op: '==', right: '"none"' });
-				    logics.push('und');
-				    renderConditionGroups();
-				    syncBlocksToDSL();
-				});
-				condGroupsContainer.appendChild(addBtn);
+							// Wenn bereits im Klammer-Modus, abbrechen
+							if (block._parenMode) {
+								exitParenMode(block);
+								return;
+							}
 
-				// "( )" Button zum Setzen von Klammern
-				if (groups.length > 1) {
-				    var parenBtn = document.createElement('button');
-				    parenBtn.className = 'cond-paren-btn';
-				    parenBtn.textContent = '( )';
-				    parenBtn.title = 'Klammern setzen: Wähle Start und Ende';
-				    parenBtn.style.cssText = 'background:linear-gradient(135deg,#e3f2fd,#bbdefb); border:2px solid #42a5f5; border-radius:10px; padding:3px 8px; font-size:0.7rem; cursor:pointer; margin-left:4px; color:#1565c0; font-weight:800; font-family:inherit;';
-				    parenBtn.setAttribute('draggable', 'false');
-				    parenBtn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-					parenBtn.addEventListener('click', function(e) {
-						e.stopPropagation();
+							// Klammer-Modus aktivieren
+							block._parenMode = 'start';
+							block._parenStartIdx = null;
 
-						// Wenn bereits im Klammer-Modus, abbrechen
-						if (block._parenMode) {
-							exitParenMode(block);
-							return;
-						}
+							// Button visuell ändern
+							parenBtn.textContent = '⏳ Wähle START...';
+							parenBtn.style.background = '#fff3e0';
+							parenBtn.style.borderColor = '#ff9800';
+							parenBtn.style.animation = 'pulse 1s infinite';
 
-						// Klammer-Modus aktivieren
-						block._parenMode = 'start'; // 'start' = warte auf Öffnung, 'end' = warte auf Schließung
-						block._parenStartIdx = null;
+							// ═══ NEU: Alle Gruppen-Wrapper hervorheben ═══
+							var groupWrappers = condGroupsContainer.querySelectorAll('.cond-group-wrapper');
+							for (var gi = 0; gi < groupWrappers.length; gi++) {
+								(function(gIdx, wrapper) {
+									// Selects im Wrapper deaktivieren (pointer-events: none)
+									var selects = wrapper.querySelectorAll('select');
+									for (var s = 0; s < selects.length; s++) {
+										selects[s].style.pointerEvents = 'none';
+									}
 
-						// Button visuell ändern
-						parenBtn.textContent = '⏳ Wähle START...';
-						parenBtn.style.background = '#fff3e0';
-						parenBtn.style.borderColor = '#ff9800';
-						parenBtn.style.animation = 'pulse 1s infinite';
+									// Visuellen Marker hinzufügen
+									var marker = document.createElement('div');
+									marker.className = 'paren-select-marker';
+									marker.textContent = '👆 ' + (gIdx + 1);
+									marker.style.cssText = 'position:absolute; top:-18px; left:50%; transform:translateX(-50%); ' +
+										'background:#ff9800; color:#fff; padding:1px 6px; border-radius:8px; ' +
+										'font-size:0.65rem; font-weight:bold; pointer-events:none; white-space:nowrap; z-index:10;';
+									wrapper.appendChild(marker);
+									wrapper.classList.add('paren-selectable');
 
-						// Alle Bedingungsgruppen hervorheben und klickbar machen
-						var groupElements = condGroupsContainer.querySelectorAll('select.cond-left');
-						for (var gi = 0; gi < groupElements.length; gi++) {
-							(function(gIdx) {
-								var groupRow = getConditionGroupRow(condGroupsContainer, gIdx);
-								if (!groupRow) return;
+									// Klick-Handler auf den Wrapper
+									var clickHandler = function(ev) {
+										ev.stopPropagation();
+										ev.preventDefault();
 
-								// Visuellen Marker hinzufügen
-								var marker = document.createElement('div');
-								marker.className = 'paren-select-marker';
-								marker.textContent = '👆 ' + (gIdx + 1);
-								marker.style.cssText = 'position:absolute; top:-18px; left:50%; transform:translateX(-50%); ' +
-									'background:#ff9800; color:#fff; padding:1px 6px; border-radius:8px; ' +
-									'font-size:0.65rem; font-weight:bold; pointer-events:none; white-space:nowrap; z-index:10;';
+										if (block._parenMode === 'start') {
+											block._parenStartIdx = gIdx;
+											block._parenMode = 'end';
 
-								// Wrapper für relative Positionierung
-								if (!groupRow.style.position || groupRow.style.position === 'static') {
-									groupRow.style.position = 'relative';
-								}
-								groupRow.appendChild(marker);
-								groupRow.classList.add('paren-selectable');
+											wrapper.classList.add('paren-selected-start');
+											parenBtn.textContent = '⏳ Wähle ENDE...';
 
-								// Klick-Handler
-								var clickHandler = function(ev) {
-									ev.stopPropagation();
+											// Ungültige Positionen deaktivieren
+											var allWrappers = condGroupsContainer.querySelectorAll('.cond-group-wrapper');
+											for (var m = 0; m < allWrappers.length; m++) {
+												if (m < gIdx) {
+													allWrappers[m].classList.add('paren-disabled');
+													allWrappers[m].classList.remove('paren-selectable');
+												}
+											}
 
-									if (block._parenMode === 'start') {
-										// Start-Klammer gesetzt
-										block._parenStartIdx = gIdx;
-										block._parenMode = 'end';
-
-										// Visuelles Feedback
-										groupRow.classList.add('paren-selected-start');
-										parenBtn.textContent = '⏳ Wähle ENDE...';
-
-										// Nur gültige End-Positionen hervorheben (>= startIdx)
-										var allMarkers = condGroupsContainer.querySelectorAll('.paren-select-marker');
-										for (var m = 0; m < allMarkers.length; m++) {
-											if (m < gIdx) {
-												allMarkers[m].parentElement.classList.add('paren-disabled');
-												allMarkers[m].parentElement.classList.remove('paren-selectable');
+										} else if (block._parenMode === 'end') {
+											if (gIdx >= block._parenStartIdx) {
+												groups[block._parenStartIdx].parenOpen = true;
+												groups[gIdx].parenClose = true;
+												exitParenMode(block);
+												renderConditionGroups();
+												syncBlocksToDSL();
 											}
 										}
+									};
 
-									} else if (block._parenMode === 'end') {
-										// End-Klammer gesetzt
-										if (gIdx >= block._parenStartIdx) {
-											groups[block._parenStartIdx].parenOpen = true;
-											groups[gIdx].parenClose = true;
-											exitParenMode(block);
-											renderConditionGroups();
-											syncBlocksToDSL();
-										}
-									}
-								};
+									wrapper.addEventListener('click', clickHandler);
+									wrapper._parenClickHandler = clickHandler;
 
-								groupRow.addEventListener('click', clickHandler);
-								groupRow._parenClickHandler = clickHandler;
-
-							})(gi);
-						}
-					});
-				    condGroupsContainer.appendChild(parenBtn);
+								})(gi, groupWrappers[gi]);
+							}
+						});
+						condGroupsContainer.appendChild(parenBtn);
+					}
 				}
-			    }
 
 			    // Speichere groups/logics am Block-Element für spätere Nutzung
 			    block._condGroups = groups;
